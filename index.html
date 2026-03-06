@@ -131,11 +131,13 @@ const STYLES = `
   .tile-name-jp{font-family:'Noto Sans JP',sans-serif;font-size:11px;color:#6e9070;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
 
   /* DETAIL PANE */
-  .detail-pane{width:260px;min-width:260px;background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;}
+  .detail-pane{width:360px;min-width:360px;background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;}
   .detail-pane.hidden{width:0;min-width:0;overflow:hidden;}
   .detail-pane::-webkit-scrollbar{width:4px;}
   .detail-pane::-webkit-scrollbar-thumb{background:var(--ln2);}
-  .detail-inner{padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-width:260px;}
+  .detail-inner{padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-width:360px;}
+  .reg-cols{display:flex;gap:10px;}
+  .reg-col{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;}
   .detail-close{background:none;border:1px solid var(--ln2);border-radius:3px;padding:4px 12px;color:var(--mut);font-family:'IBM Plex Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:.08em;align-self:stretch;}
   .detail-close:hover{border-color:var(--mut);color:var(--txt);}
   .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;}
@@ -235,7 +237,7 @@ function CardTile({ card, selected, onClick }) {
 }
 
 // ── 詳細パネル ──
-function DetailPane({ card, players, onAddDeck, onClose }) {
+function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
   if (!card) return <div className="detail-pane hidden" />;
   return (
     <div className="detail-pane">
@@ -253,25 +255,42 @@ function DetailPane({ card, players, onAddDeck, onClose }) {
           </div>
         )}
         {card.p != null && <div className="detail-type">{card.p} / {card.th}</div>}
-        {players.length > 0 ? (<>
-          <div className="section-label">DECK REGISTER</div>
-          <div className="player-reg-btns">
-            {players.map(p => {
-              const has = p.decks.includes(card.id);
-              return (
-                <button key={p.id}
-                  className={`player-reg-btn${has?" has":""}`}
-                  style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
-                  onClick={() => !has && onAddDeck(p.id, card.id, p.name)}>
-                  <span style={{ fontWeight:600 }}>{p.name}</span>
-                  <span style={{ fontSize:10, opacity:.8 }}>{has ? "✓ 登録済み" : "＋ 追加"}</span>
-                </button>
-              );
-            })}
+        {players.length > 0 ? (
+          <div className="reg-cols">
+            <div className="reg-col">
+              <div className="section-label">統率者デッキ</div>
+              {players.map(p => {
+                const has = p.decks.includes(card.id);
+                return (
+                  <button key={p.id}
+                    className={`player-reg-btn${has?" has":""}`}
+                    style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
+                    onClick={() => !has && onAddDeck(p.id, card.id, p.name)}>
+                    <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
+                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>{has ? "✓" : "＋"}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="reg-col">
+              <div className="section-label">欲しいカード</div>
+              {players.map(p => {
+                const has = (p.wants||[]).includes(card.id);
+                return (
+                  <button key={p.id}
+                    className={`player-reg-btn${has?" has":""}`}
+                    style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
+                    onClick={() => !has && onAddWant(p.id, card.id, p.name)}>
+                    <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
+                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>{has ? "✓" : "＋"}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </>) : (
+        ) : (
           <div style={{ fontSize:10, color:"var(--dim)", textAlign:"center", lineHeight:1.8 }}>
-            PLAYERSタブでプレイヤーを<br />追加するとデッキ登録できます
+            「統率者デッキ」タブでプレイヤーを<br />追加するとデッキ登録できます
           </div>
         )}
       </div>
@@ -285,7 +304,7 @@ function AddPlayerModal({ onAdd, onClose }) {
   const [color, setColor] = useState(PLAYER_COLORS[0]);
   const submit = () => {
     const n = name.trim(); if (!n) return;
-    onAdd({ id: Date.now().toString(), name:n, color, decks:[] });
+    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[] });
     onClose();
   };
   return (
@@ -336,7 +355,7 @@ function App() {
   useEffect(() => {
     (async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl);
+      if (pl) setPlayers(pl.map(p => ({ wants:[], ...p })));
     })();
   }, []);
 
@@ -345,7 +364,7 @@ function App() {
     if (!SUPABASE_URL) return;
     const t = setInterval(async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl);
+      if (pl) setPlayers(pl.map(p => ({ wants:[], ...p })));
     }, 5000);
     return () => clearInterval(t);
   }, []);
@@ -378,6 +397,22 @@ function App() {
   const removeDeck = useCallback((playerId, cardId) => {
     setPlayers(prev => {
       const n = prev.map(p => p.id!==playerId ? p : { ...p, decks:p.decks.filter(d=>d!==cardId) });
+      savePl(n); return n;
+    });
+  }, [savePl]);
+
+  const addWant = useCallback((playerId, cardId, playerName) => {
+    setPlayers(prev => {
+      if (prev.find(p=>p.id===playerId)?.wants?.includes(cardId)) return prev;
+      const n = prev.map(p => p.id!==playerId ? p : { ...p, wants:[...(p.wants||[]), cardId] });
+      savePl(n); return n;
+    });
+    showToast(`✓ ${playerName} の欲しいカードに追加しました`);
+  }, [savePl, showToast]);
+
+  const removeWant = useCallback((playerId, cardId) => {
+    setPlayers(prev => {
+      const n = prev.map(p => p.id!==playerId ? p : { ...p, wants:(p.wants||[]).filter(d=>d!==cardId) });
       savePl(n); return n;
     });
   }, [savePl]);
@@ -432,7 +467,10 @@ function App() {
           <div className="main-tabs">
             <button className={`main-tab${tab==="search"?" on":""}`} onClick={() => setTab("search")}>SEARCH</button>
             <button className={`main-tab${tab==="players"?" on":""}`} onClick={() => setTab("players")}>
-              PLAYERS{players.length>0?` (${players.length})`:""}
+              統率者デッキ{players.length>0?` (${players.length})`:""}
+            </button>
+            <button className={`main-tab${tab==="wants"?" on":""}`} onClick={() => setTab("wants")}>
+              欲しいカード{players.length>0?` (${players.length})`:""}
             </button>
           </div>
           <div className="spacer" />
@@ -496,15 +534,15 @@ function App() {
               </>)}
             </div>
             <DetailPane card={selectedCard} players={players}
-              onAddDeck={addDeck} onClose={() => setSelectedCard(null)} />
+              onAddDeck={addDeck} onAddWant={addWant} onClose={() => setSelectedCard(null)} />
           </div>
         </>)}
 
-        {/* ══ PLAYERS ══ */}
+        {/* ══ 統率者デッキ ══ */}
         {tab==="players" && (
           <div className="players-wrap">
             <div className="players-toolbar">
-              <h2>PLAYERS</h2>
+              <h2>統率者デッキ</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
               {players.length > 0 && (
                 <button className={`btn${editMode?" active":""}`} onClick={() => setEditMode(p=>!p)}>
@@ -562,7 +600,75 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onClose={() => setSelectedCard(null)} />
+                  onAddDeck={addDeck} onAddWant={addWant} onClose={() => setSelectedCard(null)} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ 欲しいカード ══ */}
+        {tab==="wants" && (
+          <div className="players-wrap">
+            <div className="players-toolbar">
+              <h2>欲しいカード</h2>
+              <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
+              {players.length > 0 && (
+                <button className={`btn${editMode?" active":""}`} onClick={() => setEditMode(p=>!p)}>
+                  {editMode ? "✓ 完了" : "✎ 編集"}
+                </button>
+              )}
+              <div className="spacer" />
+              {SUPABASE_URL && <span style={{ fontSize:9, color:"#7ab87a", letterSpacing:".1em" }}>● 5秒ごとに同期中</span>}
+            </div>
+
+            {players.length===0 ? (
+              <div className="no-players-msg">
+                <div className="big">⬡</div>
+                <p>まだプレイヤーがいません<br />「＋ プレイヤーを追加」から登録してください<br /><span style={{ fontSize:10 }}>登録後、SEARCHタブからカードを追加できます</span></p>
+              </div>
+            ) : (
+              <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
+                <div className="players-scroll">
+                  {players.map(player => (
+                    <div key={player.id} className="player-row">
+                      <div className="player-info">
+                        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                          <div className="player-avatar" style={{ background:player.color }}>
+                            {player.name[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
+                            <div className="player-deck-count">{(player.wants||[]).length} 枚</div>
+                          </div>
+                        </div>
+                        {editMode && (
+                          <button className="btn danger" style={{ fontSize:9, padding:"3px 10px", marginTop:8 }}
+                            onClick={() => { if(confirm(`${player.name} を削除しますか？`)) removePlayer(player.id); }}>
+                            削除
+                          </button>
+                        )}
+                      </div>
+                      <div className="decks-strip">
+                        {(player.wants||[]).length===0 ? (
+                          <div className="empty-decks">SEARCHタブからカードを追加してください</div>
+                        ) : (player.wants||[]).map(cardId => {
+                          const card = cardById(cardId);
+                          if (!card) return null;
+                          return (
+                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
+                              onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
+                              <CardImg id={cardId} size="normal" className="deck-img" />
+                              {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
+                              <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <DetailPane card={selectedCard} players={players}
+                  onAddDeck={addDeck} onAddWant={addWant} onClose={() => setSelectedCard(null)} />
               </div>
             )}
           </div>
