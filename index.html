@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MTG VAULT — Commander Registry</title>
+<title>MTG LOOT VAULT — Commander Registry</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -83,9 +83,46 @@ const PLAYERS_KEY = "cmd-players-v1";
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
 
-// ── 画像URL（直接取得可、ブラウザ環境では制限なし）──
+// ── 画像URL ──
 function imgUrl(id, size="normal") {
   return `https://cards.scryfall.io/${size}/front/${id[0]}/${id[1]}/${id}.jpg`;
+}
+
+// ── 日本語画像UUID 遅延取得（localStorageキャッシュ付き） ──
+const _JA_LS = "mtg-ja-img-v2";
+const _jaCache = (() => {
+  const m = new Map();
+  try { Object.entries(JSON.parse(localStorage.getItem(_JA_LS)||"{}")).forEach(([k,v])=>m.set(k,v)); } catch(e){}
+  return m;
+})();
+const _jaQueue = []; // {id, name, cbs:[resolve...]}
+let _jaTimer = null;
+function _saveJa(id, val) {
+  _jaCache.set(id, val);
+  try { const s=JSON.parse(localStorage.getItem(_JA_LS)||"{}"); s[id]=val; localStorage.setItem(_JA_LS,JSON.stringify(s)); } catch(e){}
+}
+function _runJaQueue() {
+  if (!_jaQueue.length) { _jaTimer=null; return; }
+  const item = _jaQueue[0];
+  if (_jaCache.has(item.id)) {
+    _jaQueue.shift(); item.cbs.forEach(cb=>cb(_jaCache.get(item.id)));
+    _jaTimer = setTimeout(_runJaQueue, 0); return;
+  }
+  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`!"${item.name}" lang:ja`)}&order=released&dir=desc&unique=prints`;
+  fetch(url)
+    .then(r=>r.ok?r.json():null)
+    .then(d=>{ const v=d?.data?.[0]?.id||false; _saveJa(item.id,v); _jaQueue.shift(); item.cbs.forEach(cb=>cb(v)); })
+    .catch(()=>{ _saveJa(item.id,false); _jaQueue.shift(); item.cbs.forEach(cb=>cb(false)); })
+    .finally(()=>{ _jaTimer=setTimeout(_runJaQueue, 120); });
+}
+function fetchJaId(id, name) {
+  if (_jaCache.has(id)) return Promise.resolve(_jaCache.get(id));
+  return new Promise(resolve => {
+    const ex = _jaQueue.find(q=>q.id===id);
+    if (ex) { ex.cbs.push(resolve); return; }
+    _jaQueue.push({id, name, cbs:[resolve]});
+    if (!_jaTimer) _runJaQueue();
+  });
 }
 
 const STYLES = `
@@ -251,11 +288,19 @@ const STYLES = `
 `;
 
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
-function CardImg({ id, size="normal", className, style }) {
+function CardImg({ id, name, size="normal", className, style }) {
   const [err, setErr] = useState(false);
-  useEffect(() => setErr(false), [id]);
+  const [displayId, setDisplayId] = useState(() => _jaCache.get(id) || id);
+  useEffect(() => {
+    setErr(false);
+    const cached = _jaCache.get(id);
+    if (cached !== undefined) { setDisplayId(cached || id); return; }
+    setDisplayId(id);
+    if (!name) return;
+    fetchJaId(id, name).then(jaId => setDisplayId(jaId || id));
+  }, [id, name]);
   if (err) return <div className={className} style={{ display:"flex",alignItems:"center",justifyContent:"center",color:"var(--dim)",fontSize:22,...style }}>⬡</div>;
-  return <img src={imgUrl(id, size)} alt="" className={className} style={style}
+  return <img src={imgUrl(displayId, size)} alt="" className={className} style={style}
     onError={() => setErr(true)} />;
 }
 
@@ -264,7 +309,7 @@ function CardTile({ card, selected, onClick }) {
   return (
     <div className={`card-tile${selected?" selected":""}`} onClick={onClick}>
       <div className="tile-frame">
-        <CardImg id={card.id} size="normal" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top" }} />
+        <CardImg id={card.id} name={card.n} size="normal" style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"top" }} />
       </div>
       <div className="tile-name-en">{card.n}</div>
       {card.j && <div className="tile-name-jp">{card.j}</div>}
@@ -279,7 +324,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
     <div className="detail-pane">
       <div className="detail-inner">
         <button className="detail-close" onClick={onClose}>✕ 閉じる</button>
-        <CardImg id={card.id} size="normal" className="detail-img" />
+        <CardImg id={card.id} name={card.n} size="normal" className="detail-img" />
         <div className="detail-name">{card.n}</div>
         {card.j && <div className="detail-jp">{card.j}</div>}
         <div className="detail-type">{card.t}</div>
@@ -509,7 +554,7 @@ function App() {
 
         {/* TOPBAR */}
         <div className="topbar">
-          <div className="logo">⬡ MTG VAULT<small>COMMANDER REGISTRY</small></div>
+          <div className="logo">⬡ MTG LOOT VAULT<small>COMMANDER REGISTRY</small></div>
           <div className="main-tabs">
             <button className={`main-tab${tab==="search"?" on":""}`} onClick={() => setTab("search")}>SEARCH</button>
             <button className={`main-tab${tab==="players"?" on":""}`} onClick={() => setTab("players")}>
@@ -520,9 +565,6 @@ function App() {
             </button>
           </div>
           <div className="spacer" />
-          <span className={`sync-badge${SUPABASE_URL?" live":""}`}>
-            {SUPABASE_URL ? "● LIVE SYNC" : "○ LOCAL"}
-          </span>
         </div>
 
         {/* ══ SEARCH ══ */}
@@ -596,7 +638,6 @@ function App() {
                 </button>
               )}
               <div className="spacer" />
-              {SUPABASE_URL && <span style={{ fontSize:9, color:"#7ab87a", letterSpacing:".1em" }}>● 5秒ごとに同期中</span>}
             </div>
 
             {players.length===0 ? (
@@ -632,7 +673,7 @@ function App() {
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
                               onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
-                              <CardImg id={cardId} size="normal" className="deck-img" />
+                              <CardImg id={cardId} name={card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
                             </div>
@@ -661,7 +702,6 @@ function App() {
                 </button>
               )}
               <div className="spacer" />
-              {SUPABASE_URL && <span style={{ fontSize:9, color:"#7ab87a", letterSpacing:".1em" }}>● 5秒ごとに同期中</span>}
             </div>
 
             {players.length===0 ? (
@@ -697,7 +737,7 @@ function App() {
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
                               onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
-                              <CardImg id={cardId} size="normal" className="deck-img" />
+                              <CardImg id={cardId} name={card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
                             </div>
