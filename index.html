@@ -80,7 +80,8 @@ const PLAYER_COLORS = [
 ];
 const PLAYERS_KEY = "cmd-players-v1";
 
-function cardById(id) { return COMMANDERS.find(c => c.id === id); }
+const _apiCache = new Map();
+function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
 
 // ── 画像URL（直接取得可、ブラウザ環境では制限なし）──
 function imgUrl(id, size="normal") {
@@ -101,7 +102,12 @@ const STYLES = `
   .sync-badge.live{color:#7ab87a;}
 
   /* SEARCH */
-  .search-header{background:var(--bg2);border-bottom:1px solid var(--line);padding:0 24px;height:50px;display:flex;align-items:center;flex-shrink:0;}
+  .search-header{background:var(--bg2);border-bottom:1px solid var(--line);padding:0 24px;height:50px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .mode-toggle{display:flex;gap:4px;flex-shrink:0;}
+  .mode-btn{background:none;border:1px solid var(--ln2);border-radius:3px;padding:4px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--mut);cursor:pointer;letter-spacing:.08em;transition:all .15s;}
+  .mode-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .mode-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(197,165,87,.08);}
+  .api-loading{text-align:center;padding:60px;font-size:11px;color:var(--dim);letter-spacing:.1em;}
   .s-wrap{flex:1;max-width:540px;position:relative;}
   .s-wrap input{width:100%;background:var(--bg3);border:1px solid var(--ln2);border-radius:4px;padding:10px 36px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s;}
   .s-wrap input:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(197,165,87,.07);}
@@ -320,6 +326,9 @@ function App() {
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
+  const [searchMode, setSearchMode]     = useState("commander"); // "commander" | "all"
+  const [apiResults, setApiResults]     = useState(null);
+  const [apiLoading, setApiLoading]     = useState(false);
   const inputRef   = useRef(null);
   const toastTimer = useRef(null);
 
@@ -373,12 +382,42 @@ function App() {
     });
   }, [savePl]);
 
+  // 全カードモード: Scryfall APIをデバウンス検索
+  useEffect(() => {
+    if (searchMode !== "all") return;
+    const q = query.trim();
+    if (!q) { setApiResults(null); setApiLoading(false); return; }
+    setApiLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&unique=cards`;
+        const r = await fetch(url);
+        if (!r.ok) { setApiResults([]); setApiLoading(false); return; }
+        const data = await r.json();
+        const cards = (data.data || []).map(c => {
+          const card = {
+            id: c.id, n: c.name, j: c.printed_name || "",
+            t: c.type_line || "", ci: c.color_identity || [],
+            p: c.power || null, th: c.toughness || null,
+            r: (c.rarity || "c")[0], cat: "c"
+          };
+          _apiCache.set(c.id, card);
+          return card;
+        });
+        setApiResults(cards);
+      } catch(e) { setApiResults([]); }
+      setApiLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, searchMode]);
+
   const displayCards = useMemo(() => {
+    if (searchMode === "all") return apiResults;
     const q = query.trim();
     if (!q) return null;
     const ql = q.toLowerCase();
     return COMMANDERS.filter(c => c.n.toLowerCase().includes(ql) || c.j.includes(q));
-  }, [query]);
+  }, [query, searchMode, apiResults]);
 
   return (
     <>
@@ -406,19 +445,38 @@ function App() {
             <div className="s-wrap">
               <span className="si">⌕</span>
               <input ref={inputRef}
-                placeholder={`統率者名を検索… (${COMMANDERS.length.toLocaleString()} 枚対象)`}
+                placeholder={searchMode==="commander"
+                  ? `統率者名を検索… (${COMMANDERS.length.toLocaleString()} 枚対象)`
+                  : "カード名を検索… (Scryfall 全カード対象)"}
                 value={query} onChange={e => setQuery(e.target.value)} />
-              {query && <button className="cx" onClick={() => { setQuery(""); setSelectedCard(null); inputRef.current?.focus(); }}>✕</button>}
+              {query && <button className="cx" onClick={() => { setQuery(""); setSelectedCard(null); setApiResults(null); inputRef.current?.focus(); }}>✕</button>}
+            </div>
+            <div className="mode-toggle">
+              <button className={`mode-btn${searchMode==="commander"?" on":""}`}
+                onClick={() => { setSearchMode("commander"); setApiResults(null); setSelectedCard(null); }}>
+                統率者
+              </button>
+              <button className={`mode-btn${searchMode==="all"?" on":""}`}
+                onClick={() => { setSearchMode("all"); setSelectedCard(null); }}>
+                全カード
+              </button>
             </div>
           </div>
           <div className="body-wrap">
             <div className="grid-pane">
-              {displayCards === null ? (
+              {apiLoading ? (
+                <div className="api-loading">検索中…</div>
+              ) : displayCards === null ? (
                 <div className="hint">
                   <div className="hint-icon">⬡</div>
                   <div className="hint-txt">
-                    統率者名（英語または日本語）を入力して検索<br />
-                    <span className="hint-num">{COMMANDERS.length.toLocaleString()} 枚</span> の統率者候補から絞り込めます<br />
+                    {searchMode==="commander" ? <>
+                      統率者名（英語または日本語）を入力して検索<br />
+                      <span className="hint-num">{COMMANDERS.length.toLocaleString()} 枚</span> の統率者候補から絞り込めます
+                    </> : <>
+                      カード名（英語）を入力して検索<br />
+                      <span className="hint-num">Scryfall</span> の全カードが対象です
+                    </>}<br />
                     カードをクリックすると詳細とデッキ登録が表示されます
                   </div>
                 </div>
