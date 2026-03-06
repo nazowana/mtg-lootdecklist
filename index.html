@@ -178,6 +178,12 @@ const STYLES = `
   .detail-close{background:none;border:1px solid var(--ln2);border-radius:3px;padding:4px 12px;color:var(--mut);font-family:'IBM Plex Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:.08em;align-self:stretch;}
   .detail-close:hover{border-color:var(--mut);color:var(--txt);}
   .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;}
+  .print-wrap{position:relative;}
+  .print-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:rgba(255,255,255,.9);font-size:22px;line-height:1;padding:8px 5px;cursor:pointer;z-index:2;transition:background .15s;user-select:none;}
+  .print-nav:hover{background:rgba(0,0,0,.9);}
+  .print-nav.l{left:5px;}
+  .print-nav.r{right:5px;}
+  .print-counter{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);border-radius:10px;padding:2px 10px;font-size:9px;color:rgba(255,255,255,.8);font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;white-space:nowrap;}
   .detail-img-ph{width:100%;aspect-ratio:63/88;border-radius:var(--radius);background:var(--bg3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:32px;}
   .detail-name{font-family:'Cinzel',serif;font-size:12px;font-weight:600;color:#d8d0c0;letter-spacing:.04em;line-height:1.4;text-align:center;}
   .detail-jp{font-family:'Noto Sans JP',sans-serif;font-size:13px;color:#7a9a7a;text-align:center;}
@@ -319,12 +325,39 @@ function CardTile({ card, selected, onClick }) {
 
 // ── 詳細パネル ──
 function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
+  const [prints, setPrints] = useState([]);
+  const [printIdx, setPrintIdx] = useState(0);
+
+  useEffect(() => {
+    if (!card) return;
+    setPrints([]);
+    setPrintIdx(0);
+    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`!"${card.n}" (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`;
+    fetch(url)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setPrints((d?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang }))))
+      .catch(() => {});
+  }, [card?.id]);
+
   if (!card) return <div className="detail-pane hidden" />;
+
+  const displayId = prints.length > 0 ? prints[printIdx].id : (_jaCache.get(card.id) || card.id);
+  const multi = prints.length > 1;
+  const prev = () => setPrintIdx(i => (i - 1 + prints.length) % prints.length);
+  const next = () => setPrintIdx(i => (i + 1) % prints.length);
+
   return (
     <div className="detail-pane">
       <div className="detail-inner">
         <button className="detail-close" onClick={onClose}>✕ 閉じる</button>
-        <CardImg id={card.id} name={card.n} size="normal" className="detail-img" />
+        <div className="print-wrap">
+          <CardImg id={displayId} size="normal" className="detail-img" />
+          {multi && <>
+            <button className="print-nav l" onClick={prev}>‹</button>
+            <button className="print-nav r" onClick={next}>›</button>
+            <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].set}　{prints[printIdx].lang.toUpperCase()}</div>
+          </>}
+        </div>
         <div className="detail-name">{card.n}</div>
         {card.j && <div className="detail-jp">{card.j}</div>}
         <div className="detail-type">{card.t}</div>
