@@ -89,7 +89,7 @@ function imgUrl(id, size="normal") {
 }
 
 // ── 日本語画像UUID 遅延取得（localStorageキャッシュ付き） ──
-const _JA_LS = "mtg-ja-img-v2";
+const _JA_LS = "mtg-ja-img-v3";
 const _jaCache = (() => {
   const m = new Map();
   try { Object.entries(JSON.parse(localStorage.getItem(_JA_LS)||"{}")).forEach(([k,v])=>m.set(k,v)); } catch(e){}
@@ -108,12 +108,27 @@ function _runJaQueue() {
     _jaQueue.shift(); item.cbs.forEach(cb=>cb(_jaCache.get(item.id)));
     _jaTimer = setTimeout(_runJaQueue, 0); return;
   }
-  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`!"${item.name}" lang:ja`)}&order=released&dir=desc&unique=prints`;
-  fetch(url)
-    .then(r=>r.ok?r.json():null)
-    .then(d=>{ const v=d?.data?.[0]?.id||false; _saveJa(item.id,v); _jaQueue.shift(); item.cbs.forEach(cb=>cb(v)); })
-    .catch(()=>{ _saveJa(item.id,false); _jaQueue.shift(); item.cbs.forEach(cb=>cb(false)); })
-    .finally(()=>{ _jaTimer=setTimeout(_runJaQueue, 120); });
+  (async () => {
+    try {
+      const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(item.name)}`);
+      const c1 = r1.ok ? await r1.json() : null;
+      let v = false;
+      if (c1?.oracle_id) {
+        const r2 = await fetch(`https://api.scryfall.com/cards/search?q=oracleid%3A${c1.oracle_id}%2Blang%3Aja&order=released&dir=desc&unique=prints`);
+        const d2 = r2.ok ? await r2.json() : null;
+        v = d2?.data?.[0]?.id || false;
+      }
+      _saveJa(item.id, v);
+      _jaQueue.shift();
+      item.cbs.forEach(cb => cb(v));
+    } catch(e) {
+      _saveJa(item.id, false);
+      _jaQueue.shift();
+      item.cbs.forEach(cb => cb(false));
+    } finally {
+      _jaTimer = setTimeout(_runJaQueue, 250);
+    }
+  })();
 }
 function fetchJaId(id, name) {
   if (_jaCache.has(id)) return Promise.resolve(_jaCache.get(id));
@@ -330,7 +345,7 @@ function CardTile({ card, selected, onClick }) {
 }
 
 // ── 詳細パネル ──
-function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
+function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, onClose }) {
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
@@ -341,11 +356,16 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
     setDisplayId(initialId);
     setPrints([]);
     setPrintIdx(0);
-    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`!"${card.n}" (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`;
-    fetch(url)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        const data = (d?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang }));
+    let cancelled = false;
+    (async () => {
+      try {
+        const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.n)}`);
+        const c1 = r1.ok ? await r1.json() : null;
+        if (!c1?.oracle_id || cancelled) return;
+        const r2 = await fetch(`https://api.scryfall.com/cards/search?q=oracleid%3A${c1.oracle_id}%2B(lang%3Aja+or+lang%3Aen)&order=released&dir=desc&unique=prints`);
+        const d2 = r2.ok ? await r2.json() : null;
+        if (cancelled) return;
+        const data = (d2?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang }));
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
         if (idx >= 0) {
@@ -354,8 +374,9 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
           setPrintIdx(0);
           setDisplayId(data[0].id);
         }
-      })
-      .catch(() => {});
+      } catch(e) {}
+    })();
+    return () => { cancelled = true; };
   }, [card?.id]);
 
   const goTo = (idx) => { setPrintIdx(idx); setDisplayId(prints[idx].id); };
@@ -389,6 +410,18 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
             ))}
           </div>
         )}
+        {artCtx && (() => {
+          const isDirty = curId !== artCtx.artId;
+          return (
+            <button
+              className={`btn${isDirty ? " primary" : ""}`}
+              style={{ opacity:isDirty?1:0.4, cursor:isDirty?"pointer":"default", alignSelf:"stretch" }}
+              disabled={!isDirty}
+              onClick={() => onSaveArt(artCtx.playerId, artCtx.cardId, curId)}>
+              イラストを保存
+            </button>
+          );
+        })()}
         <div className="detail-name">{card.n}</div>
         {card.j && <div className="detail-jp">{card.j}</div>}
         {players.length > 0 ? (
@@ -476,6 +509,7 @@ function App() {
   const [tab, setTab]                   = useState("search");
   const [query, setQuery]               = useState("");
   const [selectedCard, setSelectedCard] = useState(null);
+  const [selectedArtCtx, setSelectedArtCtx] = useState(null); // {playerId,cardId,artId} | null
   const [players, setPlayers]           = useState([]);
   const [editMode, setEditMode]         = useState(false);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
@@ -553,6 +587,17 @@ function App() {
       savePl(n); return n;
     });
   }, [savePl]);
+
+  const saveArt = useCallback((playerId, cardId, artId) => {
+    setPlayers(prev => {
+      const n = prev.map(p => p.id!==playerId ? p : { ...p, arts:{...(p.arts||{}), [cardId]:artId} });
+      savePl(n); return n;
+    });
+    setSelectedArtCtx(ctx => ctx ? { ...ctx, artId } : null);
+    showToast("✓ イラストを保存しました");
+  }, [savePl, showToast]);
+
+  const closeDetail = useCallback(() => { setSelectedCard(null); setSelectedArtCtx(null); }, []);
 
   // 全カードモード: 総枚数取得
   useEffect(() => {
@@ -677,7 +722,7 @@ function App() {
               </>)}
             </div>
             <DetailPane card={selectedCard} players={players}
-              onAddDeck={addDeck} onAddWant={addWant} onClose={() => setSelectedCard(null)} />
+              onAddDeck={addDeck} onAddWant={addWant} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
           </div>
         </>)}
 
@@ -727,7 +772,7 @@ function App() {
                           if (!card) return null;
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
-                              onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
+                              onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
@@ -739,7 +784,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} onClose={() => setSelectedCard(null)} />
+                  onAddDeck={addDeck} onAddWant={addWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
@@ -791,7 +836,7 @@ function App() {
                           if (!card) return null;
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
-                              onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
+                              onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
@@ -803,7 +848,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} onClose={() => setSelectedCard(null)} />
+                  onAddDeck={addDeck} onAddWant={addWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
