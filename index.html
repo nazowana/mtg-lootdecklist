@@ -184,6 +184,12 @@ const STYLES = `
   .print-nav.l{left:5px;}
   .print-nav.r{right:5px;}
   .print-counter{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);border-radius:10px;padding:2px 10px;font-size:9px;color:rgba(255,255,255,.8);font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;white-space:nowrap;}
+  .print-thumbs{display:flex;gap:5px;overflow-x:auto;padding:2px 0;}
+  .print-thumbs::-webkit-scrollbar{height:3px;}
+  .print-thumbs::-webkit-scrollbar-thumb{background:var(--ln2);}
+  .print-thumb{flex-shrink:0;width:46px;height:64px;border-radius:4px;object-fit:cover;object-position:top;cursor:pointer;opacity:.45;transition:opacity .15s,outline .15s;}
+  .print-thumb:hover{opacity:.75;}
+  .print-thumb.on{opacity:1;outline:2px solid var(--gold);outline-offset:1px;}
   .detail-img-ph{width:100%;aspect-ratio:63/88;border-radius:var(--radius);background:var(--bg3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:32px;}
   .detail-name{font-family:'Cinzel',serif;font-size:12px;font-weight:600;color:#d8d0c0;letter-spacing:.04em;line-height:1.4;text-align:center;}
   .detail-jp{font-family:'Noto Sans JP',sans-serif;font-size:13px;color:#7a9a7a;text-align:center;}
@@ -327,48 +333,64 @@ function CardTile({ card, selected, onClick }) {
 function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
+  const [displayId, setDisplayId] = useState(null);
 
   useEffect(() => {
     if (!card) return;
+    const initialId = _jaCache.get(card.id) || card.id;
+    setDisplayId(initialId);
     setPrints([]);
     setPrintIdx(0);
     const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`!"${card.n}" (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`;
     fetch(url)
       .then(r => r.ok ? r.json() : null)
-      .then(d => setPrints((d?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang }))))
+      .then(d => {
+        const data = (d?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang }));
+        setPrints(data);
+        const idx = data.findIndex(p => p.id === initialId);
+        if (idx >= 0) {
+          setPrintIdx(idx);
+        } else if (data.length > 0) {
+          setPrintIdx(0);
+          setDisplayId(data[0].id);
+        }
+      })
       .catch(() => {});
   }, [card?.id]);
 
+  const goTo = (idx) => { setPrintIdx(idx); setDisplayId(prints[idx].id); };
+  const prev = () => goTo((printIdx - 1 + prints.length) % prints.length);
+  const next = () => goTo((printIdx + 1) % prints.length);
+
   if (!card) return <div className="detail-pane hidden" />;
 
-  const displayId = prints.length > 0 ? prints[printIdx].id : (_jaCache.get(card.id) || card.id);
+  const curId = displayId || _jaCache.get(card.id) || card.id;
   const multi = prints.length > 1;
-  const prev = () => setPrintIdx(i => (i - 1 + prints.length) % prints.length);
-  const next = () => setPrintIdx(i => (i + 1) % prints.length);
 
   return (
     <div className="detail-pane">
       <div className="detail-inner">
         <button className="detail-close" onClick={onClose}>✕ 閉じる</button>
         <div className="print-wrap">
-          <CardImg id={displayId} size="normal" className="detail-img" />
+          <CardImg id={curId} size="normal" className="detail-img" />
           {multi && <>
             <button className="print-nav l" onClick={prev}>‹</button>
             <button className="print-nav r" onClick={next}>›</button>
-            <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].set}　{prints[printIdx].lang.toUpperCase()}</div>
+            <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].lang.toUpperCase()}</div>
           </>}
         </div>
-        <div className="detail-name">{card.n}</div>
-        {card.j && <div className="detail-jp">{card.j}</div>}
-        <div className="detail-type">{card.t}</div>
-        {card.ci.length > 0 && (
-          <div className="detail-pips">
-            {card.ci.filter(c => COLOR_BG[c]).map(c => (
-              <div key={c} className="detail-pip" style={{ background:COLOR_BG[c] }} title={COLOR_LBL[c]}>{c}</div>
+        {multi && (
+          <div className="print-thumbs">
+            {prints.map((p, i) => (
+              <img key={p.id} src={imgUrl(p.id, "small")} alt=""
+                className={`print-thumb${i===printIdx?" on":""}`}
+                onClick={() => goTo(i)}
+                onError={e => { e.target.style.display="none"; }} />
             ))}
           </div>
         )}
-        {card.p != null && <div className="detail-type">{card.p} / {card.th}</div>}
+        <div className="detail-name">{card.n}</div>
+        {card.j && <div className="detail-jp">{card.j}</div>}
         {players.length > 0 ? (
           <div className="reg-cols">
             <div className="reg-col">
@@ -379,7 +401,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
                   <button key={p.id}
                     className={`player-reg-btn${has?" has":""}`}
                     style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
-                    onClick={() => !has && onAddDeck(p.id, card.id, p.name)}>
+                    onClick={() => !has && onAddDeck(p.id, card.id, curId, p.name)}>
                     <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
                     <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>{has ? "✓" : "＋"}</span>
                   </button>
@@ -394,7 +416,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onClose }) {
                   <button key={p.id}
                     className={`player-reg-btn${has?" has":""}`}
                     style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
-                    onClick={() => !has && onAddWant(p.id, card.id, p.name)}>
+                    onClick={() => !has && onAddWant(p.id, card.id, curId, p.name)}>
                     <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
                     <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>{has ? "✓" : "＋"}</span>
                   </button>
@@ -418,7 +440,7 @@ function AddPlayerModal({ onAdd, onClose }) {
   const [color, setColor] = useState(PLAYER_COLORS[0]);
   const submit = () => {
     const n = name.trim(); if (!n) return;
-    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[] });
+    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[], arts:{} });
     onClose();
   };
   return (
@@ -470,7 +492,7 @@ function App() {
   useEffect(() => {
     (async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl.map(p => ({ wants:[], ...p })));
+      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, ...p })));
     })();
   }, []);
 
@@ -479,7 +501,7 @@ function App() {
     if (!SUPABASE_URL) return;
     const t = setInterval(async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl.map(p => ({ wants:[], ...p })));
+      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, ...p })));
     }, 5000);
     return () => clearInterval(t);
   }, []);
@@ -500,10 +522,10 @@ function App() {
     setPlayers(prev => { const n=prev.filter(p=>p.id!==id); savePl(n); return n; });
   }, [savePl]);
 
-  const addDeck = useCallback((playerId, cardId, playerName) => {
+  const addDeck = useCallback((playerId, cardId, artId, playerName) => {
     setPlayers(prev => {
       if (prev.find(p=>p.id===playerId)?.decks.includes(cardId)) return prev;
-      const n = prev.map(p => p.id!==playerId ? p : { ...p, decks:[...p.decks, cardId] });
+      const n = prev.map(p => p.id!==playerId ? p : { ...p, decks:[...p.decks, cardId], arts:{...(p.arts||{}), [cardId]:artId} });
       savePl(n); return n;
     });
     showToast(`✓ ${playerName} のデッキに追加しました`);
@@ -516,10 +538,10 @@ function App() {
     });
   }, [savePl]);
 
-  const addWant = useCallback((playerId, cardId, playerName) => {
+  const addWant = useCallback((playerId, cardId, artId, playerName) => {
     setPlayers(prev => {
       if (prev.find(p=>p.id===playerId)?.wants?.includes(cardId)) return prev;
-      const n = prev.map(p => p.id!==playerId ? p : { ...p, wants:[...(p.wants||[]), cardId] });
+      const n = prev.map(p => p.id!==playerId ? p : { ...p, wants:[...(p.wants||[]), cardId], arts:{...(p.arts||{}), [cardId]:artId} });
       savePl(n); return n;
     });
     showToast(`✓ ${playerName} の欲しいカードに追加しました`);
@@ -706,7 +728,7 @@ function App() {
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
                               onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
-                              <CardImg id={cardId} name={card.n} size="normal" className="deck-img" />
+                              <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
                             </div>
@@ -770,7 +792,7 @@ function App() {
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
                               onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
-                              <CardImg id={cardId} name={card.n} size="normal" className="deck-img" />
+                              <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
                             </div>
