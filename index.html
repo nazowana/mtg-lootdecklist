@@ -175,7 +175,7 @@ const STYLES = `
   .players-scroll::-webkit-scrollbar-thumb{background:var(--ln2);border-radius:3px;}
   .player-row{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-height:130px;}
   .player-row:last-child{border-bottom:none;}
-  .player-info{width:156px;min-width:156px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);flex-shrink:0;justify-content:center;}
+  .player-info{width:110px;min-width:110px;padding:12px 12px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);flex-shrink:0;justify-content:center;}
   .player-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:12px;font-weight:700;color:#0a0c0e;}
   .player-name-txt{font-family:'Cinzel',serif;font-size:12px;font-weight:600;letter-spacing:.04em;line-height:1.2;}
   .player-deck-count{font-size:10px;color:var(--mut);}
@@ -212,6 +212,42 @@ const STYLES = `
 
   /* TOAST */
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--gold);border-radius:6px;padding:8px 20px;font-size:11px;color:var(--gold);letter-spacing:.06em;z-index:999;pointer-events:none;animation:fadeup .25s ease;}
+
+  /* ── MOBILE ── */
+  @media (max-width: 640px) {
+    /* Topbar: 2行レイアウト */
+    .topbar{flex-wrap:wrap;height:auto;padding:8px 12px 0;}
+    .logo{font-size:11px;margin-right:auto;}
+    .logo small{display:none;}
+    .main-tabs{order:9;width:calc(100% + 24px);margin:6px -12px 0;border-top:1px solid var(--line);height:38px;}
+    .main-tab{flex:1;padding:0 4px;font-size:9px;letter-spacing:.03em;}
+    .spacer{display:none;}
+
+    /* 検索ヘッダー */
+    .search-header{height:auto;padding:10px 12px;flex-wrap:wrap;gap:8px;}
+    .s-wrap{max-width:100%;}
+    .mode-toggle{width:100%;}
+    .mode-btn{flex:1;text-align:center;}
+
+    /* カードグリッド */
+    .grid-pane{padding:0 10px 24px;}
+    .card-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;}
+
+    /* DetailPane: 全画面オーバーレイ */
+    .detail-pane{position:fixed;inset:0;width:100%!important;min-width:0!important;z-index:300;border-left:none;}
+    .detail-pane.hidden{display:none;}
+
+    /* プレイヤー行 */
+    .players-toolbar{height:auto;min-height:48px;flex-wrap:wrap;padding:8px 12px;gap:8px;}
+    .player-info{width:80px;min-width:80px;padding:10px 8px;}
+    .player-avatar{width:24px;height:24px;font-size:10px;}
+    .player-name-txt{font-size:10px;}
+    .player-deck-count{font-size:9px;}
+    .decks-strip{padding:10px 8px;gap:8px;}
+    .deck-img{width:56px;height:78px;}
+    .deck-img-ph{width:56px;height:78px;}
+    .deck-name{width:56px;}
+  }
 `;
 
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
