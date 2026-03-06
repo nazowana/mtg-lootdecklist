@@ -180,6 +180,8 @@ const STYLES = `
   .deck-img-ph{width:72px;height:100px;border-radius:6px;background:var(--bg3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;color:var(--dim);}
   .deck-rm{position:absolute;top:-5px;right:-5px;width:16px;height:16px;background:#0a0c0e;border:1px solid #c06060;border-radius:50%;color:#c06060;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;z-index:2;}
   .deck-wrap:hover .deck-rm{opacity:1;}
+  .deck-wrap.selected .deck-img{outline:2px solid var(--gold);outline-offset:2px;}
+  .deck-wrap:not(.edit-mode){cursor:pointer;}
   .deck-name{font-size:9px;color:var(--mut);text-align:center;width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .empty-decks{color:var(--dim);font-size:11px;font-family:'Cinzel',serif;letter-spacing:.06em;}
   .no-players-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;padding:60px;}
@@ -459,43 +461,48 @@ function App() {
                 <p>まだプレイヤーがいません<br />「＋ プレイヤーを追加」から登録してください<br /><span style={{ fontSize:10 }}>登録後、SEARCHタブからデッキを追加できます</span></p>
               </div>
             ) : (
-              <div className="players-scroll">
-                {players.map(player => (
-                  <div key={player.id} className="player-row">
-                    <div className="player-info">
-                      <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                        <div className="player-avatar" style={{ background:player.color }}>
-                          {player.name[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
-                          <div className="player-deck-count">{player.decks.length} デッキ</div>
-                        </div>
-                      </div>
-                      {editMode && (
-                        <button className="btn danger" style={{ fontSize:9, padding:"3px 10px", marginTop:8 }}
-                          onClick={() => { if(confirm(`${player.name} を削除しますか？`)) removePlayer(player.id); }}>
-                          削除
-                        </button>
-                      )}
-                    </div>
-                    <div className="decks-strip">
-                      {player.decks.length===0 ? (
-                        <div className="empty-decks">SEARCHタブからデッキを追加してください</div>
-                      ) : player.decks.map(cardId => {
-                        const card = cardById(cardId);
-                        if (!card) return null;
-                        return (
-                          <div key={cardId} className="deck-wrap">
-                            <CardImg id={cardId} size="normal" className="deck-img" />
-                            {editMode && <button className="deck-rm" onClick={() => removeDeck(player.id, cardId)}>✕</button>}
-                            <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+              <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
+                <div className="players-scroll">
+                  {players.map(player => (
+                    <div key={player.id} className="player-row">
+                      <div className="player-info">
+                        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                          <div className="player-avatar" style={{ background:player.color }}>
+                            {player.name[0].toUpperCase()}
                           </div>
-                        );
-                      })}
+                          <div>
+                            <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
+                            <div className="player-deck-count">{player.decks.length} デッキ</div>
+                          </div>
+                        </div>
+                        {editMode && (
+                          <button className="btn danger" style={{ fontSize:9, padding:"3px 10px", marginTop:8 }}
+                            onClick={() => { if(confirm(`${player.name} を削除しますか？`)) removePlayer(player.id); }}>
+                            削除
+                          </button>
+                        )}
+                      </div>
+                      <div className="decks-strip">
+                        {player.decks.length===0 ? (
+                          <div className="empty-decks">SEARCHタブからデッキを追加してください</div>
+                        ) : player.decks.map(cardId => {
+                          const card = cardById(cardId);
+                          if (!card) return null;
+                          return (
+                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
+                              onClick={() => !editMode && setSelectedCard(p => p?.id===cardId ? null : card)}>
+                              <CardImg id={cardId} size="normal" className="deck-img" />
+                              {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
+                              <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <DetailPane card={selectedCard} players={players}
+                  onAddDeck={addDeck} onClose={() => setSelectedCard(null)} />
               </div>
             )}
           </div>
