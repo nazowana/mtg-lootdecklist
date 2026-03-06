@@ -390,7 +390,9 @@ function App() {
     setApiLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&unique=cards`;
+        const isJa = /[\u3040-\u9FFF]/.test(q);
+        const apiQ = isJa ? `lang%3Aja+${encodeURIComponent(q)}` : encodeURIComponent(q);
+        const url = `https://api.scryfall.com/cards/search?q=${apiQ}&order=name&unique=cards`;
         const r = await fetch(url);
         if (!r.ok) { setApiResults([]); setApiLoading(false); return; }
         const data = await r.json();
@@ -474,7 +476,7 @@ function App() {
                       統率者名（英語または日本語）を入力して検索<br />
                       <span className="hint-num">{COMMANDERS.length.toLocaleString()} 枚</span> の統率者候補から絞り込めます
                     </> : <>
-                      カード名（英語）を入力して検索<br />
+                      カード名（英語・日本語）を入力して検索<br />
                       <span className="hint-num">Scryfall</span> の全カードが対象です
                     </>}<br />
                     カードをクリックすると詳細とデッキ登録が表示されます
