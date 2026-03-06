@@ -384,6 +384,7 @@ function App() {
   const [searchMode, setSearchMode]     = useState("commander"); // "commander" | "all"
   const [apiResults, setApiResults]     = useState(null);
   const [apiLoading, setApiLoading]     = useState(false);
+  const [apiTotalCards, setApiTotalCards] = useState(null);
   const inputRef   = useRef(null);
   const toastTimer = useRef(null);
 
@@ -452,6 +453,15 @@ function App() {
       savePl(n); return n;
     });
   }, [savePl]);
+
+  // 全カードモード: 総枚数取得
+  useEffect(() => {
+    if (searchMode !== "all" || apiTotalCards !== null) return;
+    fetch("https://api.scryfall.com/cards/search?q=*&unique=cards&page=1")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.total_cards) setApiTotalCards(d.total_cards); })
+      .catch(() => {});
+  }, [searchMode, apiTotalCards]);
 
   // 全カードモード: Scryfall APIをデバウンス検索
   useEffect(() => {
@@ -551,7 +561,7 @@ function App() {
                       <span className="hint-num">{COMMANDERS.length.toLocaleString()} 枚</span> の統率者候補から絞り込めます
                     </> : <>
                       カード名（英語・日本語）を入力して検索<br />
-                      <span className="hint-num">Scryfall</span> の全カードが対象です
+                      <span className="hint-num">{apiTotalCards ? apiTotalCards.toLocaleString()+" 枚" : "Scryfall"}</span> の全カードが対象です
                     </>}<br />
                     カードをクリックすると詳細とデッキ登録が表示されます
                   </div>
@@ -600,10 +610,7 @@ function App() {
                   {players.map(player => (
                     <div key={player.id} className="player-row">
                       <div className="player-info">
-                        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                          <div className="player-avatar" style={{ background:player.color }}>
-                            {player.name[0].toUpperCase()}
-                          </div>
+                        <div>
                           <div>
                             <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
                             <div className="player-deck-count">{player.decks.length} デッキ</div>
@@ -668,10 +675,7 @@ function App() {
                   {players.map(player => (
                     <div key={player.id} className="player-row">
                       <div className="player-info">
-                        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                          <div className="player-avatar" style={{ background:player.color }}>
-                            {player.name[0].toUpperCase()}
-                          </div>
+                        <div>
                           <div>
                             <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
                             <div className="player-deck-count">{(player.wants||[]).length} 枚</div>
