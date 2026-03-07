@@ -255,6 +255,11 @@ const STYLES = `
   .deck-wrap.selected .deck-img{outline:2px solid var(--gold);outline-offset:2px;}
   .deck-wrap:not(.edit-mode){cursor:pointer;}
   .deck-name{font-size:9px;color:var(--mut);text-align:center;width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .deck-bracket-badge{position:absolute;bottom:6px;left:5px;min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid rgba(197,165,87,.55);color:var(--gold);font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:.02em;}
+  .deck-brackets-row{display:flex;gap:2px;justify-content:center;padding-top:1px;}
+  .deck-bracket-btn{width:13px;height:13px;border:1px solid var(--ln2);border-radius:2px;background:none;color:var(--dim);font-size:8px;font-family:'IBM Plex Mono',monospace;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .12s;}
+  .deck-bracket-btn:hover{border-color:var(--mut);color:var(--txt);}
+  .deck-bracket-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(197,165,87,.15);}
   .empty-decks{color:var(--dim);font-size:11px;font-family:'Cinzel',serif;letter-spacing:.06em;}
   .no-players-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;padding:60px;}
   .no-players-msg .big{font-size:32px;opacity:.1;}
@@ -311,6 +316,7 @@ const STYLES = `
     .deck-img{width:56px;height:78px;}
     .deck-img-ph{width:56px;height:78px;}
     .deck-name{width:56px;}
+    .deck-bracket-btn{width:11px;height:11px;font-size:7px;}
   }
 `;
 
@@ -572,6 +578,17 @@ function App() {
     });
   }, [savePl]);
 
+  const setBracket = useCallback((playerId, cardId, bracket) => {
+    setPlayers(prev => {
+      const n = prev.map(p => {
+        if (p.id !== playerId) return p;
+        const brackets = { ...(p.brackets || {}), [cardId]: bracket };
+        return { ...p, brackets };
+      });
+      savePl(n); return n;
+    });
+  }, [savePl]);
+
   const addWant = useCallback((playerId, cardId, artId, playerName) => {
     setPlayers(prev => {
       if (prev.find(p=>p.id===playerId)?.wants?.includes(cardId)) return prev;
@@ -775,7 +792,18 @@ function App() {
                               onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
+                              {!editMode && player.brackets?.[cardId] && (
+                                <div className="deck-bracket-badge">B{player.brackets[cardId]}</div>
+                              )}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+                              {editMode && (
+                                <div className="deck-brackets-row" onClick={e => e.stopPropagation()}>
+                                  {[1,2,3,4,5].map(b => (
+                                    <button key={b} className={`deck-bracket-btn${(player.brackets?.[cardId]||0)===b?" on":""}`}
+                                      onClick={() => setBracket(player.id, cardId, b)}>{b}</button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
