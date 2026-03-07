@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.5.2";
+const APP_VERSION = "1.5.3";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -439,10 +439,13 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
         const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
         const c1 = r1.ok ? await r1.json() : null;
         if (!c1?.oracle_id || cancelled) return;
-        const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`);
+        const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id}`)}&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
         if (cancelled) return;
-        const data = (d2?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }));
+        const langScore = l => l === 'ja' ? 0 : l === 'en' ? 1 : 2;
+        const data = (d2?.data || [])
+          .map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }))
+          .sort((a, b) => langScore(a.lang) - langScore(b.lang));
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
         if (idx >= 0) {
