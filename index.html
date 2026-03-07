@@ -79,14 +79,14 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.4.5";
+const APP_VERSION = "1.5.0";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
 
 // ── 画像URL ──
-function imgUrl(id, size="normal") {
-  return `https://cards.scryfall.io/${size}/front/${id[0]}/${id[1]}/${id}.jpg`;
+function imgUrl(id, size="normal", face="front") {
+  return `https://cards.scryfall.io/${size}/${face}/${id[0]}/${id[1]}/${id}.jpg`;
 }
 
 // ── 日本語画像UUID 遅延取得（localStorageキャッシュ付き） ──
@@ -198,6 +198,10 @@ const STYLES = `
   .detail-close:hover{border-color:var(--mut);color:var(--txt);}
   .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;}
   .print-wrap{position:relative;}
+  .face-flip-btn{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.68);border:1px solid rgba(255,255,255,.28);border-radius:4px;color:rgba(255,255,255,.88);font-size:9px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:4px 9px;letter-spacing:.07em;transition:all .15s;z-index:2;}
+  .face-flip-btn:hover{background:rgba(0,0,0,.9);border-color:rgba(255,255,255,.55);}
+  [data-theme="light"] .face-flip-btn{background:rgba(255,255,255,.78);border-color:rgba(0,0,0,.22);color:rgba(0,0,0,.82);}
+  [data-theme="light"] .face-flip-btn:hover{background:rgba(255,255,255,.96);}
   .print-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:rgba(255,255,255,.9);font-size:22px;line-height:1;padding:8px 5px;cursor:pointer;z-index:2;transition:background .15s;user-select:none;}
   .print-nav:hover{background:rgba(0,0,0,.9);}
   .print-nav.l{left:5px;}
@@ -394,6 +398,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
+  const [faceIdx, setFaceIdx] = useState(0);
   const thumbsRef = useRef(null);
   const dragRef = useRef({ moved: false });
 
@@ -425,6 +430,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
     setDisplayId(initialId);
     setPrints([]);
     setPrintIdx(0);
+    setFaceIdx(0);
     let cancelled = false;
     (async () => {
       try {
@@ -434,7 +440,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
         if (cancelled) return;
-        const data = (d2?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang }));
+        const data = (d2?.data || []).map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }));
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
         if (idx >= 0) {
@@ -448,7 +454,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
     return () => { cancelled = true; };
   }, [card?.id]);
 
-  const goTo = (idx) => { setPrintIdx(idx); setDisplayId(prints[idx].id); };
+  const goTo = (idx) => { setPrintIdx(idx); setDisplayId(prints[idx].id); setFaceIdx(0); };
   const prev = () => goTo((printIdx - 1 + prints.length) % prints.length);
   const next = () => goTo((printIdx + 1) % prints.length);
 
@@ -456,17 +462,25 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
 
   const curId = displayId || _jaCache.get(card.id) || card.id;
   const multi = prints.length > 1;
+  const isDfc = prints[printIdx]?.dfc;
 
   return (
     <div className="detail-pane">
       <div className="detail-inner">
         <button className="detail-close" onClick={onClose}>✕ 閉じる</button>
         <div className="print-wrap">
-          <CardImg id={curId} size="normal" className="detail-img" />
+          {faceIdx === 1
+            ? <img src={imgUrl(curId, "normal", "back")} alt="" className="detail-img" />
+            : <CardImg id={curId} size="normal" className="detail-img" />}
+          {isDfc && (
+            <button className="face-flip-btn" onClick={() => setFaceIdx(f => 1 - f)}>
+              {faceIdx === 0 ? "↺ 裏面" : "↺ 表面"}
+            </button>
+          )}
           {multi && <>
             <button className="print-nav l" onClick={prev}>‹</button>
             <button className="print-nav r" onClick={next}>›</button>
-            <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].lang.toUpperCase()}</div>
+            <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].lang.toUpperCase()}{isDfc ? (faceIdx===0?" / 表":"/ 裏") : ""}</div>
           </>}
         </div>
         {multi && (
