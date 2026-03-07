@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.4.3";
+const APP_VERSION = "1.4.4";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -203,7 +203,7 @@ const STYLES = `
   .print-nav.l{left:5px;}
   .print-nav.r{right:5px;}
   .print-counter{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);border-radius:10px;padding:2px 10px;font-size:9px;color:rgba(255,255,255,.8);font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;white-space:nowrap;}
-  .print-thumbs{display:flex;gap:5px;overflow-x:auto;padding:2px 0;user-select:none;}
+  .print-thumbs{display:flex;gap:5px;overflow-x:auto;padding:2px 0;user-select:none;cursor:grab;}
   .print-thumbs.dragging{cursor:grabbing !important;}
   .print-thumbs::-webkit-scrollbar{height:3px;}
   .print-thumbs::-webkit-scrollbar-thumb{background:var(--ln2);}
@@ -395,32 +395,23 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
   const thumbsRef = useRef(null);
-  const dragRef = useRef({ active:false, startX:0, scrollLeft:0 });
-
-  const DRAG_Y_RATIO = 0.60; // 下40%がドラッグゾーン
+  const dragRef = useRef({ active:false, startX:0, scrollLeft:0, moved:false });
 
   const onThumbsMouseDown = e => {
     const el = thumbsRef.current; if (!el) return;
-    const rect = el.getBoundingClientRect();
-    if (e.clientY - rect.top < rect.height * DRAG_Y_RATIO) return; // 上70%はクリックに委ねる
-    e.preventDefault();
-    dragRef.current = { active:true, startX:e.pageX, scrollLeft:el.scrollLeft };
+    dragRef.current = { active:true, startX:e.pageX, scrollLeft:el.scrollLeft, moved:false };
     el.classList.add("dragging");
   };
   const onThumbsMouseMove = e => {
     const el = thumbsRef.current; if (!el) return;
-    const d = dragRef.current;
-    if (d.active) {
-      el.scrollLeft = d.scrollLeft - (e.pageX - d.startX);
-      return;
-    }
-    const rect = el.getBoundingClientRect();
-    el.style.cursor = (e.clientY - rect.top) >= rect.height * DRAG_Y_RATIO ? "grab" : "pointer";
+    const d = dragRef.current; if (!d.active) return;
+    const dx = e.pageX - d.startX;
+    if (Math.abs(dx) > 4) d.moved = true;
+    el.scrollLeft = d.scrollLeft - dx;
   };
   const onThumbsMouseUp = () => {
     dragRef.current.active = false;
-    const el = thumbsRef.current;
-    if (el) { el.classList.remove("dragging"); el.style.cursor = ""; }
+    thumbsRef.current?.classList.remove("dragging");
   };
 
   useEffect(() => {
@@ -478,11 +469,11 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
             onMouseDown={onThumbsMouseDown}
             onMouseMove={onThumbsMouseMove}
             onMouseUp={onThumbsMouseUp}
-            onMouseLeave={() => { onThumbsMouseUp(); thumbsRef.current && (thumbsRef.current.style.cursor=""); }}>
+            onMouseLeave={onThumbsMouseUp}>
             {prints.map((p, i) => (
               <img key={p.id} src={imgUrl(p.id, "small")} alt=""
                 className={`print-thumb${i===printIdx?" on":""}`}
-                onClick={() => goTo(i)}
+                onClick={() => { if (!dragRef.current.moved) goTo(i); }}
                 onError={e => { e.target.style.display="none"; }} />
             ))}
           </div>
