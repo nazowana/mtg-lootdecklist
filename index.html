@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -154,6 +154,8 @@ const STYLES = `
   .spacer{flex:1;}
   .sync-badge{font-size:9px;color:var(--dim);letter-spacing:.1em;}
   .sync-badge.live{color:#7ab87a;}
+  .theme-btn{background:none;border:none;cursor:pointer;font-size:16px;padding:4px 6px;color:var(--mut);transition:color .15s;line-height:1;}
+  .theme-btn:hover{color:var(--txt);}
 
   /* SEARCH */
   .search-header{background:var(--bg2);border-bottom:1px solid var(--line);padding:0 24px;height:50px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
@@ -329,6 +331,31 @@ const STYLES = `
     .deck-name{width:56px;}
     .deck-bracket-btn{width:11px;height:11px;font-size:7px;}
   }
+
+  /* ── LIGHT MODE ── */
+  [data-theme="light"]{
+    --bg:#f5f1eb;--bg2:#ede7dc;--bg3:#e4ddd2;
+    --line:#d0c6b8;--ln2:#bfb4a4;
+    --gold:#8a6820;--txt:#2a2015;--mut:#8a7a65;--dim:#b8aa98;
+  }
+  [data-theme="light"] html,[data-theme="light"] body,[data-theme="light"] #root{background:var(--bg);}
+  [data-theme="light"] .detail-name{color:#1a140c;}
+  [data-theme="light"] .players-toolbar h2{color:#1a140c;}
+  [data-theme="light"] .modal h3{color:#1a140c;}
+  [data-theme="light"] .tile-name-en{color:#3a2e20;}
+  [data-theme="light"] .player-avatar{color:#f5f0e8;}
+  [data-theme="light"] .deck-rm{background:#f0ebe0;border-color:#c06060;}
+  [data-theme="light"] .deck-bracket-badge{background:rgba(255,255,255,.88);}
+  [data-theme="light"] .deck-img{box-shadow:0 4px 12px rgba(0,0,0,.2);}
+  [data-theme="light"] .tile-frame{box-shadow:0 4px 14px rgba(0,0,0,.18);}
+  [data-theme="light"] .detail-img{box-shadow:0 8px 28px rgba(0,0,0,.22);}
+  [data-theme="light"] .modal-overlay{background:rgba(0,0,0,.45);}
+  [data-theme="light"] .theme-btn{color:var(--mut);}
+  [data-theme="light"] .hint-num{background:rgba(138,104,32,.06);border-color:rgba(138,104,32,.2);color:rgba(138,104,32,.6);}
+  [data-theme="light"] .no-players-msg p{color:var(--mut);}
+  [data-theme="light"] .api-loading{color:var(--mut);}
+  [data-theme="light"] .no-result{color:var(--mut);}
+  [data-theme="light"] .swatch.on{border-color:#2a2015;}
 `;
 
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
@@ -530,6 +557,13 @@ function App() {
   const [players, setPlayers]           = useState([]);
   const [editMode, setEditMode]         = useState(false);
   const [bracketMode, setBracketMode]   = useState(false);
+  const [darkMode, setDarkMode]         = useState(() => localStorage.getItem("mtg-theme") !== "light");
+
+  useEffect(() => {
+    const theme = darkMode ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("mtg-theme", theme);
+  }, [darkMode]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
@@ -694,6 +728,9 @@ function App() {
             </button>
           </div>
           <div className="spacer" />
+          <button className="theme-btn" onClick={() => setDarkMode(p => !p)} title={darkMode ? "ライトモードに切り替え" : "ダークモードに切り替え"}>
+            {darkMode ? "☀" : "☾"}
+          </button>
         </div>
 
         {/* ══ SEARCH ══ */}
@@ -704,7 +741,7 @@ function App() {
               <input ref={inputRef}
                 placeholder={searchMode==="commander"
                   ? `統率者名を検索… (${COMMANDERS.length.toLocaleString()} 枚対象)`
-                  : "カード名を検索… (Scryfall 全カード対象)"}
+                  : `カード名を検索… (${apiTotalCards ? apiTotalCards.toLocaleString()+" 枚対象" : "読み込み中…"})`}
                 value={query} onChange={e => setQuery(e.target.value)} />
               {query && <button className="cx" onClick={() => { setQuery(""); setSelectedCard(null); setApiResults(null); inputRef.current?.focus(); }}>✕</button>}
             </div>
@@ -761,15 +798,15 @@ function App() {
             <div className="players-toolbar">
               <h2>統率者デッキ</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
-              <div className="spacer" />
               {players.length > 0 && (<>
-                <button className={`btn${bracketMode?" active":""}`} onClick={() => { setBracketMode(p=>!p); setEditMode(false); }}>
+                <button className={`btn primary${bracketMode?" active":""}`} onClick={() => { setBracketMode(p=>!p); setEditMode(false); }}>
                   {bracketMode ? "✓ 完了" : "⊞ ブラケット"}
                 </button>
-                <button className={`btn${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
+                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
                   {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
               </>)}
+              <div className="spacer" />
             </div>
 
             {players.length===0 ? (
