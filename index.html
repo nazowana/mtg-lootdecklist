@@ -79,6 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
+const APP_VERSION = "1.1.0";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -145,6 +146,7 @@ const STYLES = `
   .topbar{background:var(--bg2);border-bottom:1px solid var(--line);padding:0 24px;height:52px;display:flex;align-items:center;gap:0;flex-shrink:0;position:sticky;top:0;z-index:200;}
   .logo{font-family:'Cinzel',serif;font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.14em;white-space:nowrap;margin-right:28px;line-height:1;}
   .logo small{display:block;font-size:8px;color:var(--mut);letter-spacing:.22em;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
+  .logo .ver{font-size:7px;color:var(--dim);font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;margin-left:6px;vertical-align:middle;}
   .main-tabs{display:flex;height:100%;}
   .main-tab{background:none;border:none;border-bottom:2px solid transparent;padding:0 22px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mut);cursor:pointer;letter-spacing:.1em;transition:all .15s;white-space:nowrap;}
   .main-tab:hover{color:var(--txt);}
@@ -518,6 +520,7 @@ function App() {
   const [selectedArtCtx, setSelectedArtCtx] = useState(null); // {playerId,cardId,artId} | null
   const [players, setPlayers]           = useState([]);
   const [editMode, setEditMode]         = useState(false);
+  const [bracketMode, setBracketMode]   = useState(false);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
@@ -671,7 +674,7 @@ function App() {
 
         {/* TOPBAR */}
         <div className="topbar">
-          <div className="logo">⬡ MTG LOOT VAULT<small>COMMANDER REGISTRY</small></div>
+          <div className="logo">⬡ MTG LOOT VAULT<small>COMMANDER REGISTRY<span className="ver">v{APP_VERSION}</span></small></div>
           <div className="main-tabs">
             <button className={`main-tab${tab==="search"?" on":""}`} onClick={() => setTab("search")}>SEARCH</button>
             <button className={`main-tab${tab==="players"?" on":""}`} onClick={() => setTab("players")}>
@@ -749,11 +752,14 @@ function App() {
             <div className="players-toolbar">
               <h2>統率者デッキ</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
-              {players.length > 0 && (
-                <button className={`btn${editMode?" active":""}`} onClick={() => setEditMode(p=>!p)}>
-                  {editMode ? "✓ 完了" : "✎ 編集"}
+              {players.length > 0 && (<>
+                <button className={`btn${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
+                  {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
-              )}
+                <button className={`btn${bracketMode?" active":""}`} onClick={() => { setBracketMode(p=>!p); setEditMode(false); }}>
+                  {bracketMode ? "✓ 完了" : "⊞ ブラケット"}
+                </button>
+              </>)}
               <div className="spacer" />
             </div>
 
@@ -789,14 +795,14 @@ function App() {
                           if (!card) return null;
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
-                              onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||cardId}); }}>
+                              onClick={() => { if(editMode||bracketMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
-                              {!editMode && player.brackets?.[cardId] && (
+                              {!bracketMode && player.brackets?.[cardId] && (
                                 <div className="deck-bracket-badge">B{player.brackets[cardId]}</div>
                               )}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
-                              {editMode && (
+                              {bracketMode && (
                                 <div className="deck-brackets-row" onClick={e => e.stopPropagation()}>
                                   {[1,2,3,4,5].map(b => (
                                     <button key={b} className={`deck-bracket-btn${(player.brackets?.[cardId]||0)===b?" on":""}`}
@@ -825,8 +831,8 @@ function App() {
               <h2>欲しいカード</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
               {players.length > 0 && (
-                <button className={`btn${editMode?" active":""}`} onClick={() => setEditMode(p=>!p)}>
-                  {editMode ? "✓ 完了" : "✎ 編集"}
+                <button className={`btn${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
+                  {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
               )}
               <div className="spacer" />
