@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.1.2";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -426,7 +426,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
               style={{ opacity:isDirty?1:0.4, cursor:isDirty?"pointer":"default", alignSelf:"stretch" }}
               disabled={!isDirty}
               onClick={() => onSaveArt(artCtx.playerId, artCtx.cardId, curId)}>
-              イラストを保存
+              イラストを変更
             </button>
           );
         })()}
@@ -723,7 +723,7 @@ function App() {
                       <span className="hint-num">{COMMANDERS.length.toLocaleString()} 枚</span> の統率者候補から絞り込めます
                     </> : <>
                       カード名（英語・日本語）を入力して検索<br />
-                      <span className="hint-num">{apiTotalCards ? apiTotalCards.toLocaleString()+" 枚" : "Scryfall"}</span> の全カードが対象です
+                      <span className="hint-num">{apiTotalCards ? apiTotalCards.toLocaleString()+" 枚" : "…"}</span> の全カードが対象です
                     </>}<br />
                     カードをクリックすると詳細とデッキ登録が表示されます
                   </div>
