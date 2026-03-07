@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.4.2";
+const APP_VERSION = "1.4.3";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -397,7 +397,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
   const thumbsRef = useRef(null);
   const dragRef = useRef({ active:false, startX:0, scrollLeft:0 });
 
-  const DRAG_Y_RATIO = 0.70; // 下30%がドラッグゾーン
+  const DRAG_Y_RATIO = 0.60; // 下40%がドラッグゾーン
 
   const onThumbsMouseDown = e => {
     const el = thumbsRef.current; if (!el) return;
