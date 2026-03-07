@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.1.2";
+const APP_VERSION = "1.2.0";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -257,11 +257,20 @@ const STYLES = `
   .deck-wrap.selected .deck-img{outline:2px solid var(--gold);outline-offset:2px;}
   .deck-wrap:not(.edit-mode){cursor:pointer;}
   .deck-name{font-size:9px;color:var(--mut);text-align:center;width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .deck-bracket-badge{position:absolute;bottom:6px;left:5px;min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid rgba(197,165,87,.55);color:var(--gold);font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:.02em;}
+  .deck-bracket-badge{position:absolute;top:5px;left:5px;min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:rgba(0,0,0,.78);font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:.02em;}
+  .deck-bracket-badge.b1{border:1px solid #7ab87a;color:#7ab87a;}
+  .deck-bracket-badge.b2{border:1px solid #7aaed4;color:#7aaed4;}
+  .deck-bracket-badge.b3{border:1px solid #c5a557;color:#c5a557;}
+  .deck-bracket-badge.b4{border:1px solid #d47a3a;color:#d47a3a;}
+  .deck-bracket-badge.b5{border:1px solid #c06060;color:#c06060;}
   .deck-brackets-row{display:flex;gap:2px;justify-content:center;padding-top:1px;}
   .deck-bracket-btn{width:13px;height:13px;border:1px solid var(--ln2);border-radius:2px;background:none;color:var(--dim);font-size:8px;font-family:'IBM Plex Mono',monospace;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .12s;}
   .deck-bracket-btn:hover{border-color:var(--mut);color:var(--txt);}
-  .deck-bracket-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(197,165,87,.15);}
+  .deck-bracket-btn.b1.on{border-color:#7ab87a;color:#7ab87a;background:rgba(122,184,122,.15);}
+  .deck-bracket-btn.b2.on{border-color:#7aaed4;color:#7aaed4;background:rgba(122,174,212,.15);}
+  .deck-bracket-btn.b3.on{border-color:#c5a557;color:#c5a557;background:rgba(197,165,87,.15);}
+  .deck-bracket-btn.b4.on{border-color:#d47a3a;color:#d47a3a;background:rgba(212,122,58,.15);}
+  .deck-bracket-btn.b5.on{border-color:#c06060;color:#c06060;background:rgba(192,96,96,.15);}
   .empty-decks{color:var(--dim);font-size:11px;font-family:'Cinzel',serif;letter-spacing:.06em;}
   .no-players-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;padding:60px;}
   .no-players-msg .big{font-size:32px;opacity:.1;}
@@ -752,15 +761,15 @@ function App() {
             <div className="players-toolbar">
               <h2>統率者デッキ</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
+              <div className="spacer" />
               {players.length > 0 && (<>
-                <button className={`btn${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
-                  {editMode ? "✓ 完了" : "✕ 削除"}
-                </button>
                 <button className={`btn${bracketMode?" active":""}`} onClick={() => { setBracketMode(p=>!p); setEditMode(false); }}>
                   {bracketMode ? "✓ 完了" : "⊞ ブラケット"}
                 </button>
+                <button className={`btn${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
+                  {editMode ? "✓ 完了" : "✕ 削除"}
+                </button>
               </>)}
-              <div className="spacer" />
             </div>
 
             {players.length===0 ? (
@@ -790,22 +799,30 @@ function App() {
                       <div className="decks-strip">
                         {player.decks.length===0 ? (
                           <div className="empty-decks">SEARCHタブからデッキを追加してください</div>
-                        ) : player.decks.map(cardId => {
+                        ) : [...player.decks]
+                            .sort((a, b) => {
+                              const ba = player.brackets?.[a] || 6;
+                              const bb = player.brackets?.[b] || 6;
+                              if (ba !== bb) return ba - bb;
+                              return player.decks.indexOf(a) - player.decks.indexOf(b);
+                            })
+                            .map(cardId => {
                           const card = cardById(cardId);
                           if (!card) return null;
+                          const br = player.brackets?.[cardId];
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
                               onClick={() => { if(editMode||bracketMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
-                              {!bracketMode && player.brackets?.[cardId] && (
-                                <div className="deck-bracket-badge">B{player.brackets[cardId]}</div>
+                              {!bracketMode && br && (
+                                <div className={`deck-bracket-badge b${br}`}>B{br}</div>
                               )}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
                               {bracketMode && (
                                 <div className="deck-brackets-row" onClick={e => e.stopPropagation()}>
                                   {[1,2,3,4,5].map(b => (
-                                    <button key={b} className={`deck-bracket-btn${(player.brackets?.[cardId]||0)===b?" on":""}`}
+                                    <button key={b} className={`deck-bracket-btn b${b}${br===b?" on":""}`}
                                       onClick={() => setBracket(player.id, cardId, b)}>{b}</button>
                                   ))}
                                 </div>
