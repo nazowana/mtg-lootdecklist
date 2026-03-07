@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -111,7 +111,8 @@ function _runJaQueue() {
   }
   (async () => {
     try {
-      const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(item.name)}`);
+      const searchName = item.name.includes(' // ') ? item.name.split(' // ')[0] : item.name;
+      const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
       const c1 = r1.ok ? await r1.json() : null;
       let v = false;
       if (c1?.oracle_id) {
@@ -198,10 +199,10 @@ const STYLES = `
   .detail-close:hover{border-color:var(--mut);color:var(--txt);}
   .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;}
   .print-wrap{position:relative;}
-  .face-flip-btn{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.68);border:1px solid rgba(255,255,255,.28);border-radius:4px;color:rgba(255,255,255,.88);font-size:9px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:4px 9px;letter-spacing:.07em;transition:all .15s;z-index:2;}
-  .face-flip-btn:hover{background:rgba(0,0,0,.9);border-color:rgba(255,255,255,.55);}
-  [data-theme="light"] .face-flip-btn{background:rgba(255,255,255,.78);border-color:rgba(0,0,0,.22);color:rgba(0,0,0,.82);}
-  [data-theme="light"] .face-flip-btn:hover{background:rgba(255,255,255,.96);}
+  .face-flip-btn{position:absolute;bottom:10px;right:10px;background:rgba(10,12,14,.82);border:1.5px solid var(--gold);border-radius:5px;color:var(--gold);font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:6px 12px;letter-spacing:.08em;font-weight:600;transition:all .15s;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
+  .face-flip-btn:hover{background:rgba(197,165,87,.18);box-shadow:0 2px 12px rgba(197,165,87,.3);}
+  [data-theme="light"] .face-flip-btn{background:rgba(245,241,235,.9);border-color:var(--gold);}
+  [data-theme="light"] .face-flip-btn:hover{background:rgba(197,165,87,.15);}
   .print-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:rgba(255,255,255,.9);font-size:22px;line-height:1;padding:8px 5px;cursor:pointer;z-index:2;transition:background .15s;user-select:none;}
   .print-nav:hover{background:rgba(0,0,0,.9);}
   .print-nav.l{left:5px;}
@@ -434,7 +435,8 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
     let cancelled = false;
     (async () => {
       try {
-        const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.n)}`);
+        const searchName = card.n.includes(' // ') ? card.n.split(' // ')[0] : card.n;
+        const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
         const c1 = r1.ok ? await r1.json() : null;
         if (!c1?.oracle_id || cancelled) return;
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`);
@@ -485,12 +487,19 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
         </div>
         {multi && (
           <div className="print-thumbs" ref={thumbsRef} onMouseDown={onThumbsMouseDown}>
-            {prints.map((p, i) => (
-              <img key={p.id} src={imgUrl(p.id, "small")} alt="" draggable={false}
-                className={`print-thumb${i===printIdx?" on":""}`}
-                onClick={() => { if (!dragRef.current.moved) goTo(i); }}
-                onError={e => { e.target.style.display="none"; }} />
-            ))}
+            {prints.map((p, i) => {
+              const isSelected = i === printIdx;
+              const thumbFace = isSelected && faceIdx === 1 && p.dfc ? "back" : "front";
+              return (
+                <div key={p.id} style={{ position:"relative", flexShrink:0 }}>
+                  <img src={imgUrl(p.id, "small", thumbFace)} alt="" draggable={false}
+                    className={`print-thumb${isSelected?" on":""}`}
+                    onClick={() => { if (!dragRef.current.moved) goTo(i); }}
+                    onError={e => { e.target.style.display="none"; }} />
+                  {p.dfc && <span style={{ position:"absolute",bottom:2,right:2,fontSize:7,background:"rgba(0,0,0,.7)",color:"rgba(255,255,255,.8)",borderRadius:2,padding:"0 2px",lineHeight:"12px",pointerEvents:"none" }}>↺</span>}
+                </div>
+              );
+            })}
           </div>
         )}
         {artCtx && (() => {
