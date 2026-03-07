@@ -75,11 +75,14 @@ const COMMANDERS = [{"id":"68832214-2943-4253-8884-ffa490e84087","n":"\"Brims\" 
 const COLOR_LBL = { W:"白", U:"青", B:"黒", R:"赤", G:"緑" };
 const COLOR_BG  = { W:"#ddd090", U:"#5a9abf", B:"#9880c8", R:"#d06030", G:"#50a060" };
 const PLAYER_COLORS = [
-  "#c5a557","#8fb4c8","#a678d4","#7ab87a","#e07b39",
-  "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
+  "#c5a557","#e8d080","#f0a030","#e07b39","#d04040",
+  "#d06090","#b060d0","#a678d4","#7090c8","#8fb4c8",
+  "#60c0c0","#7ab87a","#90b060","#c0b860","#708860",
+  "#c06060","#a04040","#804080","#405080","#507050",
+  "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.5.5";
+const APP_VERSION = "1.5.6";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -292,10 +295,14 @@ const STYLES = `
   .modal-input{background:var(--bg3);border:1px solid var(--ln2);border-radius:4px;padding:9px 12px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:13px;outline:none;width:100%;transition:border-color .2s;}
   .modal-input:focus{border-color:var(--gold);}
   .modal-input::placeholder{color:var(--dim);}
-  .swatches{display:flex;gap:8px;flex-wrap:wrap;}
-  .swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s;}
+  .swatches{display:flex;gap:8px;flex-wrap:wrap;max-width:220px;}
+  .swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s;flex-shrink:0;}
   .swatch:hover{transform:scale(1.15);}
   .swatch.on{border-color:#fff;box-shadow:0 0 6px currentColor;}
+  .color-picker-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .color-picker-input{width:32px;height:32px;border:none;border-radius:50%;cursor:pointer;padding:0;background:none;}
+  .color-picker-hex{background:var(--bg3);border:1px solid var(--ln2);border-radius:4px;padding:4px 8px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:12px;width:90px;outline:none;}
+  .color-picker-hex:focus{border-color:var(--gold);}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;}
 
   /* TOAST */
@@ -362,6 +369,7 @@ const STYLES = `
   [data-theme="light"] .api-loading{color:var(--mut);}
   [data-theme="light"] .no-result{color:var(--mut);}
   [data-theme="light"] .swatch.on{border-color:#2a2015;}
+  [data-theme="light"] .color-picker-hex{color:#1a1a1a;}
 `;
 
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
@@ -588,6 +596,14 @@ function EditPlayerModal({ player, onSave, onClose }) {
                 style={{ background:c, color:c }} onClick={() => setColor(c)} />
             ))}
           </div>
+          <div className="color-picker-row">
+            <input type="color" className="color-picker-input" value={color}
+              onChange={e => setColor(e.target.value)} title="カスタムカラー" />
+            <input type="text" className="color-picker-hex" value={color}
+              onChange={e => { const v=e.target.value; if(/^#[0-9a-fA-F]{6}$/.test(v)) setColor(v); else setColor(v); }}
+              onBlur={e => { if(!/^#[0-9a-fA-F]{6}$/.test(color)) setColor(PLAYER_COLORS[0]); }}
+              maxLength={7} spellCheck={false} />
+          </div>
         </div>
         <div className="modal-actions">
           <button className="btn" onClick={onClose}>キャンセル</button>
@@ -624,6 +640,14 @@ function AddPlayerModal({ onAdd, onClose }) {
               <div key={c} className={`swatch${color===c?" on":""}`}
                 style={{ background:c, color:c }} onClick={() => setColor(c)} />
             ))}
+          </div>
+          <div className="color-picker-row">
+            <input type="color" className="color-picker-input" value={color}
+              onChange={e => setColor(e.target.value)} title="カスタムカラー" />
+            <input type="text" className="color-picker-hex" value={color}
+              onChange={e => { const v=e.target.value; if(/^#[0-9a-fA-F]{6}$/.test(v)) setColor(v); else setColor(v); }}
+              onBlur={e => { if(!/^#[0-9a-fA-F]{6}$/.test(color)) setColor(PLAYER_COLORS[0]); }}
+              maxLength={7} spellCheck={false} />
           </div>
         </div>
         <div className="modal-actions">
