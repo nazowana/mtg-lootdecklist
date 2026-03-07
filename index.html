@@ -79,7 +79,7 @@ const PLAYER_COLORS = [
   "#d06090","#60c0c0","#c06060","#90b060","#7090c8",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.3.1";
+const APP_VERSION = "1.4.0";
 
 const _apiCache = new Map();
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
@@ -511,6 +511,43 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
   );
 }
 
+// ── プレイヤー編集モーダル ──
+function EditPlayerModal({ player, onSave, onClose }) {
+  const [name, setName] = useState(player.name);
+  const [color, setColor] = useState(player.color);
+  const submit = () => {
+    const n = name.trim(); if (!n) return;
+    onSave(player.id, n, color);
+    onClose();
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h3>プレイヤーを編集</h3>
+        <div>
+          <div className="modal-label">プレイヤー名</div>
+          <input className="modal-input" value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && submit()} autoFocus />
+        </div>
+        <div>
+          <div className="modal-label">カラー</div>
+          <div className="swatches">
+            {PLAYER_COLORS.map(c => (
+              <div key={c} className={`swatch${color===c?" on":""}`}
+                style={{ background:c, color:c }} onClick={() => setColor(c)} />
+            ))}
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose}>キャンセル</button>
+          <button className="btn primary" onClick={submit}>保存</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── プレイヤー追加モーダル ──
 function AddPlayerModal({ onAdd, onClose }) {
   const [name, setName] = useState("");
@@ -563,6 +600,7 @@ function App() {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState(null); // player object | null
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
   const [searchMode, setSearchMode]     = useState("commander"); // "commander" | "all"
@@ -601,6 +639,14 @@ function App() {
   const addPlayer = useCallback(p => {
     setPlayers(prev => { const n=[...prev,p]; savePl(n); return n; });
   }, [savePl]);
+
+  const updatePlayer = useCallback((id, name, color) => {
+    setPlayers(prev => {
+      const n = prev.map(p => p.id !== id ? p : { ...p, name, color });
+      savePl(n); return n;
+    });
+    showToast("✓ プレイヤー情報を更新しました");
+  }, [savePl, showToast]);
 
   const removePlayer = useCallback(id => {
     setPlayers(prev => { const n=prev.filter(p=>p.id!==id); savePl(n); return n; });
@@ -820,7 +866,8 @@ function App() {
                       <div className="player-info">
                         <div>
                           <div>
-                            <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
+                            <div className="player-name-txt" style={{ color:player.color, cursor:"pointer", textDecoration:"underline dotted", textUnderlineOffset:3 }}
+                              onClick={() => setEditingPlayer(player)}>{player.name}</div>
                             <div className="player-deck-count">{player.decks.length} デッキ</div>
                           </div>
                         </div>
@@ -903,7 +950,8 @@ function App() {
                       <div className="player-info">
                         <div>
                           <div>
-                            <div className="player-name-txt" style={{ color:player.color }}>{player.name}</div>
+                            <div className="player-name-txt" style={{ color:player.color, cursor:"pointer", textDecoration:"underline dotted", textUnderlineOffset:3 }}
+                              onClick={() => setEditingPlayer(player)}>{player.name}</div>
                             <div className="player-deck-count">{(player.wants||[]).length} 枚</div>
                           </div>
                         </div>
@@ -942,6 +990,7 @@ function App() {
       </div>
 
       {showAddPlayer && <AddPlayerModal onAdd={addPlayer} onClose={() => setShowAddPlayer(false)} />}
+      {editingPlayer && <EditPlayerModal player={editingPlayer} onSave={updatePlayer} onClose={() => setEditingPlayer(null)} />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
