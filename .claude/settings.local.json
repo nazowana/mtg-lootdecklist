@@ -5,7 +5,15 @@
       "Bash(python -c \":*)",
       "Bash(where python3 python py)",
       "Bash(python3 -c \"print\\(''hello''\\)\")",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(node -e \"const d=require\\(''./commanders.json''\\); const c=d.find\\(x=>x.n.includes\\(''Cecil''\\)\\); console.log\\(JSON.stringify\\(c,null,2\\)\\);\")",
+      "Bash(ls \"e:/mtg\"*)",
+      "Bash(dir E:/)",
+      "Bash(where python3)",
+      "Bash(where python)",
+      "Bash(where py)",
+      "Bash(py -3 -c \"print\\(''hello''\\)\")",
+      "Bash(/c/Windows/System32/cmd.exe /c \"python3 --version\")"
     ]
   }
 }
