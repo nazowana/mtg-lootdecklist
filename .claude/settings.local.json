@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh api repos/nazowana/mtg-lootdecklist/pages)"
+      "Bash(gh api repos/nazowana/mtg-lootdecklist/pages)",
+      "Bash(python -c \":*)",
+      "Bash(where python3 python py)",
+      "Bash(python3 -c \"print\\(''hello''\\)\")",
+      "Bash(node -e \":*)"
     ]
   }
 }
