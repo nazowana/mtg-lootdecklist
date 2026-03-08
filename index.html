@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.5.7";
+const APP_VERSION = "1.5.8";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -310,6 +310,17 @@ const STYLES = `
   .color-picker-hex{background:var(--bg3);border:1px solid var(--ln2);border-radius:4px;padding:4px 8px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:12px;width:90px;outline:none;}
   .color-picker-hex:focus{border-color:var(--gold);}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+
+  .modal.wide{max-width:520px;}
+  .modal-textarea{background:var(--bg3);border:1px solid var(--ln2);border-radius:4px;padding:9px 12px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:12px;outline:none;width:100%;resize:vertical;height:160px;transition:border-color .2s;line-height:1.6;}
+  .modal-textarea:focus{border-color:var(--gold);}
+  .modal-textarea::placeholder{color:var(--dim);}
+  .modal-select{background:var(--bg3);border:1px solid var(--ln2);border-radius:4px;padding:9px 12px;color:var(--txt);font-family:'IBM Plex Mono',monospace;font-size:12px;outline:none;width:100%;cursor:pointer;}
+  .modal-select:focus{border-color:var(--gold);}
+  .import-progress{font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--mut);display:flex;flex-direction:column;gap:5px;}
+  .import-progress .prog-bar-wrap{height:3px;background:var(--ln2);border-radius:2px;overflow:hidden;}
+  .import-progress .prog-bar{height:100%;background:var(--gold);transition:width .2s;}
+  .import-errors{color:#c06060;font-size:10px;font-family:'IBM Plex Mono',monospace;max-height:60px;overflow-y:auto;line-height:1.7;}
 
   /* TOAST */
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--gold);border-radius:6px;padding:8px 20px;font-size:11px;color:var(--gold);letter-spacing:.06em;z-index:999;pointer-events:none;animation:fadeup .25s ease;}
@@ -665,6 +676,91 @@ function AddPlayerModal({ onAdd, onClose }) {
   );
 }
 
+// ── 欲しいカードインポートモーダル ──
+function ImportWantsModal({ players, onAddWant, onClose }) {
+  const [playerId, setPlayerId] = useState(players[0]?.id || "");
+  const [text, setText] = useState("");
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(null);
+
+  const parseNames = (raw) => [...new Set(
+    raw.split("\n")
+      .map(l => l.trim())
+      .filter(l => l)
+      .map(l => l.replace(/^\d+[xX]?\s+/, "").trim())
+      .filter(l => l)
+  )];
+
+  const run = async () => {
+    const names = parseNames(text);
+    if (!names.length || !playerId) return;
+    const player = players.find(p => p.id === playerId);
+    setRunning(true);
+    let ok = 0, fail = 0, errors = [];
+    setProgress({ done: 0, total: names.length, ok, fail, errors });
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      try {
+        let card = COMMANDERS.find(c => c.n.toLowerCase() === name.toLowerCase());
+        if (!card) {
+          for (const [, v] of _apiCache) {
+            if (v.n.toLowerCase() === name.toLowerCase()) { card = v; break; }
+          }
+        }
+        if (!card) {
+          const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
+          if (!r.ok) throw new Error("not found");
+          const c = await r.json();
+          card = { id:c.id, n:c.name, j:c.printed_name||c.card_faces?.[0]?.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" };
+          _cachePut(c.id, card);
+          await new Promise(res => setTimeout(res, 110));
+        }
+        onAddWant(playerId, card.id, card.id, player.name);
+        ok++;
+      } catch(e) {
+        fail++;
+        errors = [...errors, name];
+      }
+      setProgress({ done: i + 1, total: names.length, ok, fail, errors });
+    }
+    setRunning(false);
+  };
+
+  const done = progress && !running;
+  return (
+    <div className="modal-overlay" onClick={running ? undefined : onClose}>
+      <div className="modal wide" onClick={e => e.stopPropagation()}>
+        <h3>欲しいカードをインポート</h3>
+        <div>
+          <div className="modal-label">プレイヤー</div>
+          <select className="modal-select" value={playerId} onChange={e => setPlayerId(e.target.value)} disabled={running}>
+            {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <div className="modal-label">カードリスト（Magic Online形式）</div>
+          <textarea className="modal-textarea"
+            placeholder={"1 Rory Williams\n1 Adric, Mathematical Genius\n1 Flesh Duplicate"}
+            value={text} onChange={e => setText(e.target.value)} disabled={running} />
+        </div>
+        {progress && (
+          <div className="import-progress">
+            <div>{running ? `取得中… ${progress.done} / ${progress.total}` : `完了: 成功 ${progress.ok} 枚 / 失敗 ${progress.fail} 枚`}</div>
+            <div className="prog-bar-wrap"><div className="prog-bar" style={{ width:`${Math.round(progress.done/progress.total*100)}%` }} /></div>
+            {progress.errors.length > 0 && <div className="import-errors">見つからなかったカード:<br />{progress.errors.join(", ")}</div>}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose} disabled={running}>閉じる</button>
+          {!done && <button className="btn primary" onClick={run} disabled={running || !text.trim() || !playerId}>
+            {running ? "取得中…" : "インポート実行"}
+          </button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════
 function App() {
   const [tab, setTab]                   = useState("search");
@@ -680,6 +776,7 @@ function App() {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [showImportWants, setShowImportWants] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null); // player object | null
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
@@ -1027,11 +1124,12 @@ function App() {
             <div className="players-toolbar">
               <h2>欲しいカード</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
-              {players.length > 0 && (
+              {players.length > 0 && (<>
+                <button className="btn" onClick={() => setShowImportWants(true)}>⇩ インポート</button>
                 <button className={`btn${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
                   {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
-              )}
+              </>)}
               <div className="spacer" />
             </div>
 
@@ -1089,6 +1187,7 @@ function App() {
 
       {showAddPlayer && <AddPlayerModal onAdd={addPlayer} onClose={() => setShowAddPlayer(false)} />}
       {editingPlayer && <EditPlayerModal player={editingPlayer} onSave={updatePlayer} onClose={() => setEditingPlayer(null)} />}
+      {showImportWants && <ImportWantsModal players={players} onAddWant={addWant} onClose={() => setShowImportWants(false)} />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
