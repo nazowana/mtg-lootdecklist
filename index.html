@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.1";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -808,6 +808,7 @@ function App() {
   const [players, setPlayers]           = useState([]);
   const [editMode, setEditMode]         = useState(false);
   const [bracketMode, setBracketMode]   = useState(false);
+  const [bracketOrder, setBracketOrder] = useState(null); // { playerId: cardId[] } 編集開始時のスナップショット
   const [darkMode, setDarkMode]         = useState(true);
 
   useEffect(() => {
@@ -907,7 +908,9 @@ function App() {
     setPlayers(prev => {
       const n = prev.map(p => {
         if (p.id !== playerId) return p;
-        const brackets = { ...(p.brackets || {}), [cardId]: bracket };
+        const brackets = { ...(p.brackets || {}) };
+        if (bracket == null) delete brackets[cardId];
+        else brackets[cardId] = bracket;
         return { ...p, brackets };
       });
       savePl(n); return n;
@@ -1090,10 +1093,27 @@ function App() {
               <h2>統率者デッキ</h2>
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
               {players.length > 0 && (<>
-                <button className={`btn primary${bracketMode?" active":""}`} onClick={() => { setBracketMode(p=>!p); setEditMode(false); }}>
+                <button className={`btn primary${bracketMode?" active":""}`} onClick={() => {
+                  if (!bracketMode) {
+                    const order = {};
+                    players.forEach(p => {
+                      order[p.id] = [...p.decks].sort((a,b) => {
+                        const ba = p.brackets?.[a]||6, bb = p.brackets?.[b]||6;
+                        if (ba!==bb) return ba-bb;
+                        return p.decks.indexOf(a)-p.decks.indexOf(b);
+                      });
+                    });
+                    setBracketOrder(order);
+                    setBracketMode(true);
+                    setEditMode(false);
+                  } else {
+                    setBracketMode(false);
+                    setBracketOrder(null);
+                  }
+                }}>
                   {bracketMode ? "✓ 完了" : "⊞ ブラケット"}
                 </button>
-                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
+                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); setBracketOrder(null); }}>
                   {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
               </>)}
@@ -1128,14 +1148,14 @@ function App() {
                       <div className="decks-strip">
                         {player.decks.length===0 ? (
                           <div className="empty-decks">SEARCHタブからデッキを追加してください</div>
-                        ) : [...player.decks]
-                            .sort((a, b) => {
-                              const ba = player.brackets?.[a] || 6;
-                              const bb = player.brackets?.[b] || 6;
-                              if (ba !== bb) return ba - bb;
-                              return player.decks.indexOf(a) - player.decks.indexOf(b);
-                            })
-                            .map(cardId => {
+                        ) : (bracketMode && bracketOrder?.[player.id]
+                            ? bracketOrder[player.id].filter(id => player.decks.includes(id))
+                            : [...player.decks].sort((a,b) => {
+                                const ba=player.brackets?.[a]||6, bb=player.brackets?.[b]||6;
+                                if (ba!==bb) return ba-bb;
+                                return player.decks.indexOf(a)-player.decks.indexOf(b);
+                              })
+                            ).map(cardId => {
                           const card = cardById(cardId);
                           if (!card) return null;
                           const br = player.brackets?.[cardId];
@@ -1152,7 +1172,7 @@ function App() {
                                 <div className="deck-brackets-row" onClick={e => e.stopPropagation()}>
                                   {[1,2,3,4,5].map(b => (
                                     <button key={b} className={`deck-bracket-btn b${b}${br===b?" on":""}`}
-                                      onClick={() => setBracket(player.id, cardId, b)}>{b}</button>
+                                      onClick={() => setBracket(player.id, cardId, br===b ? null : b)}>{b}</button>
                                   ))}
                                 </div>
                               )}
