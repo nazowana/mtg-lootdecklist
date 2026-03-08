@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.7.3";
+const APP_VERSION = "1.7.4";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -279,7 +279,7 @@ const STYLES = `
   .deck-rm{position:absolute;top:-5px;right:-5px;width:16px;height:16px;background:#0a0c0e;border:1px solid #c06060;border-radius:50%;color:#c06060;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;z-index:2;}
   .deck-wrap:hover .deck-rm{opacity:1;}
   .deck-wrap.selected .deck-img{outline:2px solid var(--gold);outline-offset:2px;}
-  .deck-construction{position:absolute;top:0;left:0;width:72px;height:100px;border-radius:6px;pointer-events:none;z-index:1;background:repeating-linear-gradient(45deg,rgba(0,0,0,.55) 0px,rgba(0,0,0,.55) 6px,rgba(210,170,0,.45) 6px,rgba(210,170,0,.45) 12px);}
+  .deck-construction{position:absolute;top:0;left:0;width:72px;height:100px;border-radius:6px;pointer-events:none;z-index:1;background:repeating-linear-gradient(45deg,rgba(0,0,0,.85) 0px,rgba(0,0,0,.85) 5px,rgba(220,175,0,.9) 5px,rgba(220,175,0,.9) 10px);-webkit-mask:linear-gradient(#fff,#fff) 7px 7px/calc(100% - 14px) calc(100% - 14px) no-repeat,linear-gradient(#fff,#fff);-webkit-mask-composite:xor;mask:linear-gradient(#fff,#fff) 7px 7px/calc(100% - 14px) calc(100% - 14px) no-repeat,linear-gradient(#fff,#fff);mask-composite:exclude;}
   .deck-wrap:not(.edit-mode){cursor:pointer;}
   .deck-name{font-size:9px;color:var(--mut);text-align:center;width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .deck-bracket-badge{position:absolute;top:5px;left:5px;min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:rgba(0,0,0,.78);font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:.02em;}
@@ -1165,7 +1165,7 @@ function App() {
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
                               onClick={() => { if(editMode||bracketMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img"
-                                style={!bracketMode&&!br?{filter:"grayscale(.7)"}:undefined} />
+                                style={!bracketMode&&!br?{filter:"brightness(.8)"}:undefined} />
                               {!bracketMode && !br && <div className="deck-construction" />}
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
                               {!bracketMode && br && (
