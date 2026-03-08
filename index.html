@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.8.1";
+const APP_VERSION = "1.8.2";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1054,6 +1054,10 @@ function App() {
           fetch(base + jaQ).then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
 
+        // 英語名 → 英語カード（正規ID取得用）
+        const enMap = {};
+        for (const c of (dEn?.data || [])) enMap[c.name] = c;
+
         // 英語名 → 日本語名マップ
         const jaMap = {};
         for (const c of (dJa?.data || [])) {
@@ -1061,7 +1065,7 @@ function App() {
           if (ja) jaMap[c.name] = ja;
         }
 
-        // 日本語クエリなら日本語結果を優先、英語クエリなら英語結果を優先
+        // 日本語クエリなら日本語結果を優先表示順、英語クエリなら英語優先
         const primary = isJa ? (dJa?.data || []) : (dEn?.data || []);
         const secondary = isJa ? (dEn?.data || []) : (dJa?.data || []);
         const seen = new Set();
@@ -1069,14 +1073,16 @@ function App() {
         for (const c of [...primary, ...secondary]) {
           if (seen.has(c.name)) continue;
           seen.add(c.name);
+          // IDは常に英語版の正規IDを使用（言語別IDの重複登録を防ぐ）
+          const canonicalId = enMap[c.name]?.id || c.id;
           const card = {
-            id: c.id, n: c.name,
+            id: canonicalId, n: c.name,
             j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "",
             t: c.type_line || "", ci: c.color_identity || [],
             p: c.power || null, th: c.toughness || null,
             r: (c.rarity || "c")[0], cat: "c"
           };
-          _cachePut(c.id, card);
+          _cachePut(canonicalId, card);
           cards.push(card);
         }
         setApiResults(cards.length ? cards : []);
