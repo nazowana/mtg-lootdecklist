@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.8.1";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -987,6 +987,14 @@ function App() {
       savePl(n); return n;
     });
     showToast(`✓ ${playerName} の欲しいカードに追加しました`);
+    // カード名（日本語）・イラストIDをAPIで最新化
+    const card = cardById(cardId);
+    if (card) {
+      fetchJaId(cardId, card.n).then(jaId => {
+        // fetchJaId 内で _apiCache.j と _jaCache が自動更新・Supabase同期される
+        if (jaId && card.j === undefined) setPlayers(prev => [...prev]);
+      });
+    }
   }, [savePl, showToast]);
 
   const removeWant = useCallback((playerId, cardId) => {
