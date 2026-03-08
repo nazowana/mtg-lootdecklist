@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.9";
+const APP_VERSION = "1.7.0";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -816,6 +816,7 @@ function App() {
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [showImportWants, setShowImportWants] = useState(false);
   const [treasureMode, setTreasureMode] = useState(false);
+  const [treasureOrder, setTreasureOrder] = useState(null); // { playerId: cardId[] } 編集開始時のスナップショット
   const [editingPlayer, setEditingPlayer] = useState(null); // player object | null
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
@@ -1178,10 +1179,24 @@ function App() {
               {players.length > 0 && (<>
                 <div className="wants-toolbar-break" />
                 <button className="btn primary" onClick={() => setShowImportWants(true)}>⇩ インポート</button>
-                <button className={`btn primary${treasureMode?" active":""}`} onClick={() => { setTreasureMode(p=>!p); setEditMode(false); }}>
+                <button className={`btn primary${treasureMode?" active":""}`} onClick={() => {
+                  if (!treasureMode) {
+                    const order = {};
+                    players.forEach(p => {
+                      const ts = p.treasures||[];
+                      order[p.id] = [...(p.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
+                    });
+                    setTreasureOrder(order);
+                    setTreasureMode(true);
+                    setEditMode(false);
+                  } else {
+                    setTreasureMode(false);
+                    setTreasureOrder(null);
+                  }
+                }}>
                   {treasureMode ? "✓ 完了" : "☆ おたから"}
                 </button>
-                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setTreasureMode(false); }}>
+                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setTreasureMode(false); setTreasureOrder(null); }}>
                   {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
               </>)}
@@ -1218,8 +1233,8 @@ function App() {
                           <div className="empty-decks">SEARCHタブからカードを追加してください</div>
                         ) : (() => {
                           const ts = player.treasures||[];
-                          const sorted = treasureMode
-                            ? [...(player.wants||[])]
+                          const sorted = treasureMode && treasureOrder?.[player.id]
+                            ? treasureOrder[player.id].filter(id => (player.wants||[]).includes(id))
                             : [...(player.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
                           return sorted.map(cardId => {
                             const card = cardById(cardId);
