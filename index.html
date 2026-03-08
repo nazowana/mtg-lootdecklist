@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.1";
+const APP_VERSION = "1.6.2";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -288,6 +288,10 @@ const STYLES = `
   .deck-bracket-btn.b3.on{border-color:#c5a557;color:#c5a557;background:rgba(197,165,87,.15);}
   .deck-bracket-btn.b4.on{border-color:#d47a3a;color:#d47a3a;background:rgba(212,122,58,.15);}
   .deck-bracket-btn.b5.on{border-color:#c06060;color:#c06060;background:rgba(192,96,96,.15);}
+  .treasure-badge{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--gold);color:var(--gold);font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
+  .treasure-btn{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--ln2);color:var(--dim);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,border-color .12s,color .12s;z-index:2;}
+  .treasure-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);}
+  .deck-wrap:hover .treasure-btn{opacity:1;}
   .empty-decks{color:var(--dim);font-size:11px;font-family:'Cinzel',serif;letter-spacing:.06em;}
   .no-players-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;padding:60px;}
   .no-players-msg .big{font-size:32px;opacity:.1;}
@@ -637,7 +641,7 @@ function AddPlayerModal({ onAdd, onClose }) {
   const [color, setColor] = useState(PLAYER_COLORS[0]);
   const submit = () => {
     const n = name.trim(); if (!n) return;
-    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[], arts:{} });
+    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[], arts:{}, treasures:[] });
     onClose();
   };
   return (
@@ -777,6 +781,7 @@ function App() {
   }, [darkMode]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [showImportWants, setShowImportWants] = useState(false);
+  const [treasureMode, setTreasureMode] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null); // player object | null
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
@@ -792,7 +797,7 @@ function App() {
     (async () => {
       const pl = await remoteGet(PLAYERS_KEY);
       if (!pl) return;
-      const loaded = pl.map(p => ({ wants:[], arts:{}, ...p }));
+      const loaded = pl.map(p => ({ wants:[], arts:{}, treasures:[], ...p }));
       setPlayers(loaded);
 
       // キャッシュにない全カードIDをScryfallから取得
@@ -818,7 +823,7 @@ function App() {
     if (!SUPABASE_URL) return;
     const t = setInterval(async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, ...p })));
+      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, treasures:[], ...p })));
     }, 5000);
     return () => clearInterval(t);
   }, []);
@@ -886,6 +891,18 @@ function App() {
   const removeWant = useCallback((playerId, cardId) => {
     setPlayers(prev => {
       const n = prev.map(p => p.id!==playerId ? p : { ...p, wants:(p.wants||[]).filter(d=>d!==cardId) });
+      savePl(n); return n;
+    });
+  }, [savePl]);
+
+  const toggleTreasure = useCallback((playerId, cardId) => {
+    setPlayers(prev => {
+      const n = prev.map(p => {
+        if (p.id !== playerId) return p;
+        const ts = p.treasures || [];
+        const next = ts.includes(cardId) ? ts.filter(d=>d!==cardId) : [...ts, cardId];
+        return { ...p, treasures: next };
+      });
       savePl(n); return n;
     });
   }, [savePl]);
@@ -1126,7 +1143,10 @@ function App() {
               <button className="btn primary" onClick={() => setShowAddPlayer(true)}>＋ プレイヤーを追加</button>
               {players.length > 0 && (<>
                 <button className="btn primary" onClick={() => setShowImportWants(true)}>⇩ インポート</button>
-                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setBracketMode(false); }}>
+                <button className={`btn primary${treasureMode?" active":""}`} onClick={() => { setTreasureMode(p=>!p); setEditMode(false); }}>
+                  {treasureMode ? "✓ 完了" : "☆ おたから"}
+                </button>
+                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setTreasureMode(false); }}>
                   {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
               </>)}
@@ -1166,9 +1186,13 @@ function App() {
                           if (!card) return null;
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}`}
-                              onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
+                              onClick={() => { if(editMode||treasureMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={(!player.arts?.[cardId]||player.arts[cardId]===cardId)?card.n:undefined} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
+                              {treasureMode
+                                ? <button className={`treasure-btn${(player.treasures||[]).includes(cardId)?" on":""}`} onClick={e => { e.stopPropagation(); toggleTreasure(player.id, cardId); }}>☆</button>
+                                : (player.treasures||[]).includes(cardId) && <div className="treasure-badge">☆</div>
+                              }
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
                             </div>
                           );
