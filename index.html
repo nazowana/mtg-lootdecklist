@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.6";
+const APP_VERSION = "1.6.7";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -127,7 +127,13 @@ function _runJaQueue() {
       if (c1?.oracle_id) {
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=oracleid%3A${c1.oracle_id}%2Blang%3Aja&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
-        v = d2?.data?.[0]?.id || false;
+        const jaCard = d2?.data?.[0];
+        v = jaCard?.id || false;
+        // 日本語名が未保存のキャッシュエントリがあれば自動補完
+        if (jaCard?.printed_name && _apiCache.has(item.id)) {
+          const cached = _apiCache.get(item.id);
+          if (!cached.j) _cachePut(item.id, { ...cached, j: jaCard.printed_name });
+        }
       }
       _saveJa(item.id, v);
       _jaQueue.shift();
