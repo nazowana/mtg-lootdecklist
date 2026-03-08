@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.7.9";
+const APP_VERSION = "1.8.0";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -113,9 +113,14 @@ const _jaCache = (() => {
 })();
 const _jaQueue = []; // {id, name, cbs:[resolve...]}
 let _jaTimer = null;
+let _jaSyncTimer = null;
 function _saveJa(id, val) {
   _jaCache.set(id, val);
   try { const s=JSON.parse(localStorage.getItem(_JA_LS)||"{}"); s[id]=val; localStorage.setItem(_JA_LS,JSON.stringify(s)); } catch(e){}
+  if (SUPABASE_URL) {
+    clearTimeout(_jaSyncTimer);
+    _jaSyncTimer = setTimeout(() => remoteSet(_JA_LS, Object.fromEntries(_jaCache)), 3000);
+  }
 }
 function _runJaQueue() {
   if (!_jaQueue.length) { _jaTimer=null; return; }
@@ -851,19 +856,32 @@ function App() {
   // 初期ロード
   useEffect(() => {
     (async () => {
-      // Supabase のカードキャッシュをローカルにマージ（日本語名の同期）
+      // Supabase のキャッシュをローカルにマージ
       if (SUPABASE_URL) {
-        const remoteCache = await remoteGet(CARD_CACHE_KEY);
+        const [remoteCache, remoteJa] = await Promise.all([
+          remoteGet(CARD_CACHE_KEY),
+          remoteGet(_JA_LS),
+        ]);
+        // カードデータキャッシュ（日本語名含む）
         if (Array.isArray(remoteCache)) {
           for (const [id, card] of remoteCache) {
             const local = _apiCache.get(id);
-            // リモートに日本語名があればローカルを上書き
             if (card?.j && (!local || !local.j)) {
               _apiCache.set(id, card);
               try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
             } else if (!local) {
               _apiCache.set(id, card);
             }
+          }
+        }
+        // 日本語イラストIDキャッシュ
+        if (remoteJa && typeof remoteJa === "object") {
+          let updated = false;
+          for (const [id, val] of Object.entries(remoteJa)) {
+            if (!_jaCache.has(id)) { _jaCache.set(id, val); updated = true; }
+          }
+          if (updated) {
+            try { localStorage.setItem(_JA_LS, JSON.stringify(Object.fromEntries(_jaCache))); } catch(e) {}
           }
         }
       }
