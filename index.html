@@ -82,14 +82,20 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.7.8";
+const APP_VERSION = "1.7.9";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
 const _apiCache = new Map((() => { try { return JSON.parse(localStorage.getItem(CARD_CACHE_KEY) || "[]"); } catch(e) { return []; } })());
+let _cacheSyncTimer = null;
 function _cachePut(id, card) {
   _apiCache.set(id, card);
   try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
+  // Supabase へデバウンス同期（3秒後にまとめて保存）
+  if (SUPABASE_URL) {
+    clearTimeout(_cacheSyncTimer);
+    _cacheSyncTimer = setTimeout(() => remoteSet(CARD_CACHE_KEY, [..._apiCache]), 3000);
+  }
 }
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
 
@@ -845,6 +851,23 @@ function App() {
   // 初期ロード
   useEffect(() => {
     (async () => {
+      // Supabase のカードキャッシュをローカルにマージ（日本語名の同期）
+      if (SUPABASE_URL) {
+        const remoteCache = await remoteGet(CARD_CACHE_KEY);
+        if (Array.isArray(remoteCache)) {
+          for (const [id, card] of remoteCache) {
+            const local = _apiCache.get(id);
+            // リモートに日本語名があればローカルを上書き
+            if (card?.j && (!local || !local.j)) {
+              _apiCache.set(id, card);
+              try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
+            } else if (!local) {
+              _apiCache.set(id, card);
+            }
+          }
+        }
+      }
+
       const pl = await remoteGet(PLAYERS_KEY);
       if (!pl) return;
       const loaded = pl.map(p => ({ wants:[], arts:{}, treasures:[], ...p }));
