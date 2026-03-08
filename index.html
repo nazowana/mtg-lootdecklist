@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.4";
+const APP_VERSION = "1.6.5";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -289,8 +289,8 @@ const STYLES = `
   .deck-bracket-btn.b3.on{border-color:#c5a557;color:#c5a557;background:rgba(197,165,87,.15);}
   .deck-bracket-btn.b4.on{border-color:#d47a3a;color:#d47a3a;background:rgba(212,122,58,.15);}
   .deck-bracket-btn.b5.on{border-color:#c06060;color:#c06060;background:rgba(192,96,96,.15);}
-  .treasure-badge{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--gold);color:var(--gold);font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
-  .treasure-btn{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--ln2);color:var(--dim);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,border-color .12s,color .12s;z-index:2;}
+  .treasure-badge{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--gold);color:var(--gold);font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
+  .treasure-btn{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--ln2);color:var(--dim);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,border-color .12s,color .12s;z-index:2;}
   .treasure-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);}
   .deck-wrap:hover .treasure-btn{opacity:1;}
   .empty-decks{color:var(--dim);font-size:11px;font-family:'Cinzel',serif;letter-spacing:.06em;}
@@ -1206,22 +1206,26 @@ function App() {
                       <DragStrip className="decks-strip">
                         {(player.wants||[]).length===0 ? (
                           <div className="empty-decks">SEARCHタブからカードを追加してください</div>
-                        ) : (player.wants||[]).map(cardId => {
-                          const card = cardById(cardId);
-                          if (!card) return null;
-                          return (
-                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}`}
-                              onClick={() => { if(editMode||treasureMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
-                              <CardImg id={player.arts?.[cardId] || cardId} name={(!player.arts?.[cardId]||player.arts[cardId]===cardId)?card.n:undefined} size="normal" className="deck-img" />
-                              {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
-                              {treasureMode
-                                ? <button className={`treasure-btn${(player.treasures||[]).includes(cardId)?" on":""}`} onClick={e => { e.stopPropagation(); toggleTreasure(player.id, cardId); }}>☆</button>
-                                : (player.treasures||[]).includes(cardId) && <div className="treasure-badge">☆</div>
-                              }
-                              <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
-                            </div>
-                          );
-                        })}
+                        ) : (() => {
+                          const ts = player.treasures||[];
+                          const sorted = [...(player.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
+                          return sorted.map(cardId => {
+                            const card = cardById(cardId);
+                            if (!card) return null;
+                            return (
+                              <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}`}
+                                onClick={() => { if(editMode||treasureMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
+                                <CardImg id={player.arts?.[cardId] || cardId} name={(!player.arts?.[cardId]||player.arts[cardId]===cardId)?card.n:undefined} size="normal" className="deck-img" />
+                                {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
+                                {treasureMode
+                                  ? <button className={`treasure-btn${ts.includes(cardId)?" on":""}`} onClick={e => { e.stopPropagation(); toggleTreasure(player.id, cardId); }}>☆</button>
+                                  : ts.includes(cardId) && <div className="treasure-badge">☆</div>
+                                }
+                                <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+                              </div>
+                            );
+                          });
+                        })()}
                       </DragStrip>
                     </div>
                   ))}
