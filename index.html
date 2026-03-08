@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.7.5";
+const APP_VERSION = "1.7.6";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -239,8 +239,13 @@ const STYLES = `
   .section-label{font-size:9px;color:var(--dim);letter-spacing:.18em;text-align:center;}
   .player-reg-btns{display:flex;flex-direction:column;gap:6px;}
   .player-reg-btn{display:flex;align-items:center;justify-content:space-between;border:1px solid;border-radius:6px;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:.04em;transition:all .15s;background:none;width:100%;}
-  .player-reg-btn:hover:not(.has){filter:brightness(1.2);}
-  .player-reg-btn.has{opacity:.4;cursor:default;}
+  .player-reg-btn:hover{filter:brightness(1.2);}
+  .player-reg-btn.has{opacity:.55;}
+  .player-reg-btn.has:hover{opacity:1;filter:brightness(1);}
+  .player-reg-btn.has .reg-icon-check{display:inline;}
+  .player-reg-btn.has .reg-icon-remove{display:none;}
+  .player-reg-btn.has:hover .reg-icon-check{display:none;}
+  .player-reg-btn.has:hover .reg-icon-remove{display:inline;}
 
   /* HINT / NO RESULT */
   .hint{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:14px;}
@@ -461,7 +466,7 @@ function CardTile({ card, selected, onClick }) {
 }
 
 // ── 詳細パネル ──
-function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, onClose }) {
+function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemoveWant, artCtx, onSaveArt, onClose }) {
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
@@ -594,9 +599,12 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
                   <button key={p.id}
                     className={`player-reg-btn${has?" has":""}`}
                     style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
-                    onClick={() => !has && onAddDeck(p.id, card.id, curId, p.name)}>
+                    onClick={() => has ? onRemoveDeck(p.id, card.id) : onAddDeck(p.id, card.id, curId, p.name)}>
                     <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
-                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>{has ? "✓" : "＋"}</span>
+                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>
+                      <span className="reg-icon-check">{has ? "✓" : "＋"}</span>
+                      <span className="reg-icon-remove" style={{ display:"none" }}>✕</span>
+                    </span>
                   </button>
                 );
               })}
@@ -609,9 +617,12 @@ function DetailPane({ card, players, onAddDeck, onAddWant, artCtx, onSaveArt, on
                   <button key={p.id}
                     className={`player-reg-btn${has?" has":""}`}
                     style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
-                    onClick={() => !has && onAddWant(p.id, card.id, curId, p.name)}>
+                    onClick={() => has ? onRemoveWant(p.id, card.id) : onAddWant(p.id, card.id, curId, p.name)}>
                     <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
-                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>{has ? "✓" : "＋"}</span>
+                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>
+                      <span className="reg-icon-check">{has ? "✓" : "＋"}</span>
+                      <span className="reg-icon-remove" style={{ display:"none" }}>✕</span>
+                    </span>
                   </button>
                 );
               })}
@@ -1085,7 +1096,7 @@ function App() {
               </>)}
             </div>
             <DetailPane card={selectedCard} players={players}
-              onAddDeck={addDeck} onAddWant={addWant} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
+              onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
           </div>
         </>)}
 
@@ -1191,7 +1202,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
+                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
@@ -1291,7 +1302,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
+                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
