@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.8";
+const APP_VERSION = "1.6.9";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1218,7 +1218,9 @@ function App() {
                           <div className="empty-decks">SEARCHタブからカードを追加してください</div>
                         ) : (() => {
                           const ts = player.treasures||[];
-                          const sorted = [...(player.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
+                          const sorted = treasureMode
+                            ? [...(player.wants||[])]
+                            : [...(player.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
                           return sorted.map(cardId => {
                             const card = cardById(cardId);
                             if (!card) return null;
