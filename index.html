@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.2";
+const APP_VERSION = "1.6.3";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -262,7 +262,8 @@ const STYLES = `
   .player-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:12px;font-weight:700;color:#0a0c0e;}
   .player-name-txt{font-family:'Cinzel',serif;font-size:12px;font-weight:600;letter-spacing:.04em;line-height:1.2;}
   .player-deck-count{font-size:10px;color:var(--mut);}
-  .decks-strip{flex:1;display:flex;align-items:center;gap:10px;padding:14px 16px;overflow-x:auto;}
+  .decks-strip{flex:1;display:flex;align-items:center;gap:10px;padding:14px 16px;overflow-x:auto;user-select:none;cursor:grab;-webkit-overflow-scrolling:touch;}
+  .decks-strip.dragging{cursor:grabbing !important;}
   .decks-strip::-webkit-scrollbar{height:3px;}
   .decks-strip::-webkit-scrollbar-thumb{background:var(--ln2);}
   .deck-wrap{flex-shrink:0;display:flex;flex-direction:column;gap:5px;transition:transform .15s;position:relative;}
@@ -392,6 +393,24 @@ const STYLES = `
   [data-theme="light"] .swatch.on{border-color:#2a2015;}
   [data-theme="light"] .color-picker-hex{color:#1a1a1a;}
 `;
+
+// ── ドラッグスクロールストリップ ──
+function DragStrip({ className, children }) {
+  const ref = useRef(null);
+  const dragMoved = useRef(false);
+  const onMouseDown = e => {
+    const el = ref.current; if (!el) return;
+    const startX = e.pageX, startScroll = el.scrollLeft;
+    let moved = false;
+    dragMoved.current = false;
+    el.classList.add("dragging");
+    const onMove = ev => { const dx = ev.pageX - startX; if (Math.abs(dx) > 3) moved = true; el.scrollLeft = startScroll - dx; };
+    const onUp = () => { el.classList.remove("dragging"); dragMoved.current = moved; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+  return <div ref={ref} className={className} onMouseDown={onMouseDown}>{children}</div>;
+}
 
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
 function CardImg({ id, name, size="normal", className, style }) {
@@ -1178,7 +1197,7 @@ function App() {
                           </button>
                         )}
                       </div>
-                      <div className="decks-strip">
+                      <DragStrip className="decks-strip">
                         {(player.wants||[]).length===0 ? (
                           <div className="empty-decks">SEARCHタブからカードを追加してください</div>
                         ) : (player.wants||[]).map(cardId => {
@@ -1197,7 +1216,7 @@ function App() {
                             </div>
                           );
                         })}
-                      </div>
+                      </DragStrip>
                     </div>
                   ))}
                 </div>
