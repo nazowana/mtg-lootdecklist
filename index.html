@@ -1067,8 +1067,8 @@ function App() {
                           const card = cardById(cardId);
                           if (!card) return null;
                           return (
-                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
-                              onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
+                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}`}
+                              onClick={() => { if(editMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img" />
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
                               <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
