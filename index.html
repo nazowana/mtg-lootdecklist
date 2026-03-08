@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.6.3";
+const APP_VERSION = "1.6.4";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -331,6 +331,12 @@ const STYLES = `
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--gold);border-radius:6px;padding:8px 20px;font-size:11px;color:var(--gold);letter-spacing:.06em;z-index:999;pointer-events:none;animation:fadeup .25s ease;}
 
   /* ── MOBILE ── */
+  @media (min-width: 641px) {
+    .decks-strip{flex-wrap:wrap;overflow-x:hidden;align-items:flex-start;align-content:flex-start;cursor:default;}
+    .decks-strip.dragging{cursor:default !important;}
+    .player-row{min-height:unset;}
+  }
+
   @media (max-width: 640px) {
     /* Topbar: 2行レイアウト */
     .topbar{flex-wrap:wrap;height:auto;padding:8px 12px 0;}
