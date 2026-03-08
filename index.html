@@ -709,7 +709,7 @@ function App() {
           const r = await fetch(`https://api.scryfall.com/cards/${id}`);
           if (!r.ok) continue;
           const c = await r.json();
-          _cachePut(c.id, { id:c.id, n:c.name, j:c.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" });
+          _cachePut(c.id, { id:c.id, n:c.name, j:c.printed_name||c.card_faces?.[0]?.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" });
         } catch(e) {}
       }
       setPlayers(prev => [...prev]); // 再レンダリングして表示更新
@@ -829,7 +829,7 @@ function App() {
         const data = await r.json();
         const cards = (data.data || []).map(c => {
           const card = {
-            id: c.id, n: c.name, j: c.printed_name || "",
+            id: c.id, n: c.name, j: c.printed_name || c.card_faces?.[0]?.printed_name || "",
             t: c.type_line || "", ci: c.color_identity || [],
             p: c.power || null, th: c.toughness || null,
             r: (c.rarity || "c")[0], cat: "c"
