@@ -84,7 +84,12 @@ const PLAYER_COLORS = [
 const PLAYERS_KEY = "cmd-players-v1";
 const APP_VERSION = "1.5.6";
 
-const _apiCache = new Map();
+const CARD_CACHE_KEY = "cmd-card-cache-v1";
+const _apiCache = new Map((() => { try { return JSON.parse(localStorage.getItem(CARD_CACHE_KEY) || "[]"); } catch(e) { return []; } })());
+function _cachePut(id, card) {
+  _apiCache.set(id, card);
+  try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
+}
 function cardById(id) { return COMMANDERS.find(c => c.id === id) || _apiCache.get(id); }
 
 // ── 画像URL ──
@@ -688,7 +693,25 @@ function App() {
   useEffect(() => {
     (async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, ...p })));
+      if (!pl) return;
+      const loaded = pl.map(p => ({ wants:[], arts:{}, ...p }));
+      setPlayers(loaded);
+
+      // キャッシュにない全カードIDをScryfallから取得
+      const unknownIds = [...new Set(
+        loaded.flatMap(p => [...(p.wants||[]), ...(p.decks||[])])
+              .filter(id => !COMMANDERS.find(c => c.id === id) && !_apiCache.has(id))
+      )];
+      if (unknownIds.length === 0) return;
+      for (const id of unknownIds) {
+        try {
+          const r = await fetch(`https://api.scryfall.com/cards/${id}`);
+          if (!r.ok) continue;
+          const c = await r.json();
+          _cachePut(c.id, { id:c.id, n:c.name, j:c.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" });
+        } catch(e) {}
+      }
+      setPlayers(prev => [...prev]); // 再レンダリングして表示更新
     })();
   }, []);
 
@@ -810,7 +833,7 @@ function App() {
             p: c.power || null, th: c.toughness || null,
             r: (c.rarity || "c")[0], cat: "c"
           };
-          _apiCache.set(c.id, card);
+          _cachePut(c.id, card);
           return card;
         });
         setApiResults(cards);
