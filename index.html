@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.7.6";
+const APP_VERSION = "1.7.7";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -988,22 +988,41 @@ function App() {
     const timer = setTimeout(async () => {
       try {
         const isJa = /[\u3040-\u9FFF]/.test(q);
-        const apiQ = isJa ? `lang%3Aja+${encodeURIComponent(q)}` : encodeURIComponent(q);
-        const url = `https://api.scryfall.com/cards/search?q=${apiQ}&order=name&unique=cards`;
-        const r = await fetch(url);
-        if (!r.ok) { setApiResults([]); setApiLoading(false); return; }
-        const data = await r.json();
-        const cards = (data.data || []).map(c => {
+        const enQ = encodeURIComponent(q);
+        const jaQ = `lang%3Aja+${encodeURIComponent(q)}`;
+        const base = "https://api.scryfall.com/cards/search?order=name&unique=cards&q=";
+
+        const [dEn, dJa] = await Promise.all([
+          fetch(base + enQ).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(base + jaQ).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+
+        // 英語名 → 日本語名マップ
+        const jaMap = {};
+        for (const c of (dJa?.data || [])) {
+          const ja = c.printed_name || c.card_faces?.[0]?.printed_name;
+          if (ja) jaMap[c.name] = ja;
+        }
+
+        // 日本語クエリなら日本語結果を優先、英語クエリなら英語結果を優先
+        const primary = isJa ? (dJa?.data || []) : (dEn?.data || []);
+        const secondary = isJa ? (dEn?.data || []) : (dJa?.data || []);
+        const seen = new Set();
+        const cards = [];
+        for (const c of [...primary, ...secondary]) {
+          if (seen.has(c.name)) continue;
+          seen.add(c.name);
           const card = {
-            id: c.id, n: c.name, j: c.printed_name || c.card_faces?.[0]?.printed_name || "",
+            id: c.id, n: c.name,
+            j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "",
             t: c.type_line || "", ci: c.color_identity || [],
             p: c.power || null, th: c.toughness || null,
             r: (c.rarity || "c")[0], cat: "c"
           };
           _cachePut(c.id, card);
-          return card;
-        });
-        setApiResults(cards);
+          cards.push(card);
+        }
+        setApiResults(cards.length ? cards : []);
       } catch(e) { setApiResults([]); }
       setApiLoading(false);
     }, 350);
