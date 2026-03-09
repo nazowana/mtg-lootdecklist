@@ -28,6 +28,7 @@ index.html   # メインアプリ（これ1ファイルで動作する）
   "t": "Legendary Creature — Human Warrior",  // タイプライン
   "ci": ["W"],           // カラーアイデンティティ（起動型能力の色も含む）
   "co": ["W"],           // マナコストの色のみ（カラーフィルタで使用）
+                         // ※DFCはScryfall card-level colors が空のため card_faces[0].colors を使用
   "p": "4",              // パワー（nullの場合あり）
   "th": "4",             // タフネス（nullの場合あり）
   "r": "u",              // レアリティ m/r/u/c/s の1文字
