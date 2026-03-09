@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.5";
+const APP_VERSION = "1.9.6";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -460,6 +460,35 @@ function CardImg({ id, name, size="normal", className, style }) {
   if (err) return <div className={className} style={{ display:"flex",alignItems:"center",justifyContent:"center",color:"var(--dim)",fontSize:22,...style }}>⬡</div>;
   return <img src={imgUrl(displayId, size)} alt="" className={className} style={style}
     onError={() => setErr(true)} />;
+}
+
+// ── デッキ名（日本語優先・自律取得）──
+function DeckName({ card }) {
+  const [jname, setJname] = useState(card?.j || "");
+  useEffect(() => {
+    if (!card || jname) return;
+    let alive = true;
+    (async () => {
+      try {
+        // fetchJaId でUUIDを取得（キューで250ms間隔・rate-limit済み）
+        const jaId = await fetchJaId(card.id, card.n);
+        if (!alive) return;
+        // _runJaQueue が _apiCache.j を更新済みか確認
+        const updated = _apiCache.get(card.id);
+        if (updated?.j) { setJname(updated.j); return; }
+        // UUIDがあるがキャッシュヒットで名前未取得の場合、直接取得
+        if (!jaId) return;
+        const r = await fetch(`https://api.scryfall.com/cards/${jaId}`);
+        const jc = r.ok ? await r.json() : null;
+        if (!alive || !jc?.printed_name) return;
+        const cur = _apiCache.get(card.id);
+        if (cur && !cur.j) _cachePut(card.id, { ...cur, j: jc.printed_name });
+        setJname(jc.printed_name);
+      } catch(e) {}
+    })();
+    return () => { alive = false; };
+  }, [card?.id]);
+  return jname || card?.n || "";
 }
 
 // ── カードタイル ──
@@ -1343,7 +1372,7 @@ function App() {
                               {!bracketMode && br && (
                                 <div className={`deck-bracket-badge b${br}`}>B{br}</div>
                               )}
-                              <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+                              <div className="deck-name"><DeckName card={card} /></div>
                               {bracketMode && (
                                 <div className="deck-brackets-row" onClick={e => e.stopPropagation()}>
                                   {[1,2,3,4,5].map(b => (
@@ -1450,7 +1479,7 @@ function App() {
                                   className="deck-img" style={treasureMode&&!isTreasure?{filter:"grayscale(1)",opacity:.45}:undefined} />
                                 {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
                                 {isTreasure && <div className="treasure-badge">☆</div>}
-                                <div className="deck-name" title={card.j||card.n}>{card.j||card.n}</div>
+                                <div className="deck-name"><DeckName card={card} /></div>
                               </div>
                             );
                           });
