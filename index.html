@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.22";
+const APP_VERSION = "1.10.23";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1031,10 +1031,13 @@ function App() {
           for (const [id, card] of remoteCache) {
             const local = _apiCache.get(id);
             if (card?.j && (!local || !local.j)) {
-              _apiCache.set(id, card);
+              _apiCache.set(id, { ...(local || {}), ...card });
               try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
             } else if (!local) {
               _apiCache.set(id, card);
+            } else if (card?.co?.length && !local.co?.length) {
+              _apiCache.set(id, { ...local, co: card.co });
+              try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
             }
           }
         }
