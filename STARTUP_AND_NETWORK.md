@@ -56,6 +56,8 @@ Supabase から cmd-players-v1 を取得
        で英語版正規UUIDを取得（UUID正規化）
   3. _cachePut() でキャッシュ更新
      保存フィールド: id, n, j, t, ci, co, p, th, r, cat
+     ※ j（日本語名）は既存キャッシュの値を優先保持（上書き禁止）
+       jaName || _apiCache.get(id)?.j || _apiCache.get(canonicalId)?.j || ""
   ↓
 UUID変更があった場合:
   → setPlayers() でプレイヤーデータの全IDを更新
@@ -111,7 +113,7 @@ Supabase が設定されている場合のみ動作する。
   1. fetchJaId() で日本語UUID取得（キャッシュ済みなら即返却）
   2. キャッシュなし → _jaQueue 経由で取得:
        GET /cards/named?exact={name}
-       GET /cards/search?q=oracleid:{id}+lang:ja
+       GET /cards/search?q=oracleid:{id}%20lang:ja  ← encodeURIComponent でスペース区切り
   3. 取得した jaUUID で Scryfall CDN の画像URLを構築
      https://cards.scryfall.io/{size}/front/{id[0]}/{id[1]}/{id}.jpg
 ```
@@ -171,7 +173,7 @@ localStorage に即時書き込み（cmd-card-cache-v1）
 | `https://cpvpowzwahhuxbhgqdtq.supabase.co` | プレイヤーデータ・キャッシュの永続化と共有 |
 | `https://api.scryfall.com/cards/{id}` | カードデータ取得（UUID正規化・co補完） |
 | `https://api.scryfall.com/cards/named?exact=` | 英語カード正規UUID取得 / 日本語UUID検索の前段 |
-| `https://api.scryfall.com/cards/search?q=oracleid:...+lang:ja` | 日本語版UUIDの検索 |
+| `https://api.scryfall.com/cards/search?q=oracleid:...%20lang:ja` | 日本語版UUIDの検索（encodeURIComponentでスペース区切り） |
 | `https://api.scryfall.com/cards/search?q={query}` | 全カードモード検索 |
 | `https://cards.scryfall.io/` | カード画像CDN（直接参照・通信はブラウザが処理） |
 | `https://fonts.googleapis.com/` | Cinzel / IBM Plex Mono / Noto Sans JP |

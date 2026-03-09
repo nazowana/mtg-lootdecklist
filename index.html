@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.18";
+const APP_VERSION = "1.10.19";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -150,7 +150,7 @@ function _runJaQueue() {
       const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
       const c1 = r1.ok ? await r1.json() : null;
       if (c1?.oracle_id) {
-        const r2 = await fetch(`https://api.scryfall.com/cards/search?q=oracleid%3A${c1.oracle_id}%2Blang%3Aja&order=released&dir=desc&unique=prints`);
+        const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} lang:ja`)}&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
         // 日本語名を持つプリントを探す（DFCの場合 card_faces[0].printed_name をフォールバック）
         const hasJaName = c => /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(c?.printed_name||c?.card_faces?.[0]?.printed_name||"");
