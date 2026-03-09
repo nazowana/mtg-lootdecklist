@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.7";
+const APP_VERSION = "1.10.8";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -286,6 +286,7 @@ const STYLES = `
   /* COLOR FILTER BAR */
   .color-filter-bar{display:flex;gap:5px;padding:8px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center;background:var(--bg2);flex-shrink:0;}
   .cf-pip{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;transition:all .15s;opacity:.35;flex-shrink:0;}
+  .cf-pip.cf-pip-icon{font-size:11px;font-weight:400;}
   .cf-pip.on{opacity:1;box-shadow:0 0 0 2px rgba(255,255,255,.45);}
   .cf-pip:hover{opacity:.75;}
   .cf-tag{padding:2px 9px;border-radius:10px;border:1px solid var(--ln2);cursor:pointer;font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--mut);letter-spacing:.06em;transition:all .15s;opacity:.55;background:none;}
@@ -557,20 +558,20 @@ const CF_PIPS = [
   { key:'B', label:'黒', bg:'#3a3a3a', fg:'#ccc' },
   { key:'R', label:'赤', bg:'#d95040', fg:'#fff' },
   { key:'G', label:'緑', bg:'#3a8050', fg:'#fff' },
+  { key:'L', icon:'⛰', title:'土地', bg:'#6b5230', fg:'#e8d4a0' },
+  { key:'M', icon:'◇', title:'多色', bg:'linear-gradient(135deg,#d95040 0%,#d9a030 30%,#3a8050 55%,#4a90d9 80%,#a060d0 100%)', fg:'#fff' },
 ];
 const CF_TAGS = [
   { key:'C', label:'無色' },
-  { key:'M', label:'多色' },
-  { key:'L', label:'土地' },
 ];
 
 function ColorFilterBar({ filter, onToggle, onClear }) {
   return (
     <div className="color-filter-bar">
-      {CF_PIPS.map(({key, label, bg, fg}) => (
-        <button key={key} className={`cf-pip${filter.has(key)?' on':''}`}
-          style={{background:bg, color:fg}} onClick={() => onToggle(key)} title={label}>
-          {label}
+      {CF_PIPS.map(({key, label, icon, title, bg, fg}) => (
+        <button key={key} className={`cf-pip${icon?' cf-pip-icon':''}${filter.has(key)?' on':''}`}
+          style={{background:bg, color:fg}} onClick={() => onToggle(key)} title={title||label}>
+          {icon || label}
         </button>
       ))}
       <div className="cf-sep" />
