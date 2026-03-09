@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.2";
+const APP_VERSION = "1.9.3";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1314,8 +1314,8 @@ function App() {
                           if (!card) return null;
                           const br = player.brackets?.[cardId];
                           return (
-                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId?" selected":""}`}
-                              onClick={() => { if(editMode||bracketMode) return; const sel=selectedCard?.id===cardId; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
+                            <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}`}
+                              onClick={() => { if(editMode||bracketMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
                               <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img"
                                 style={!bracketMode&&!br?{filter:"brightness(.6)"}:undefined} />
                               {!bracketMode && !br && <div className="deck-construction" />}
