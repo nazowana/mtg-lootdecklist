@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.7";
+const APP_VERSION = "1.9.8";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -137,8 +137,9 @@ function _saveJa(id, val) {
 function _runJaQueue() {
   if (!_jaQueue.length) { _jaTimer=null; return; }
   const item = _jaQueue[0];
-  if (_jaCache.has(item.id)) {
-    _jaQueue.shift(); item.cbs.forEach(cb=>cb(_jaCache.get(item.id)));
+  const _cachedJaId = _jaCache.get(item.id);
+  if (_cachedJaId) { // false は fast-path しない（再試行させる）
+    _jaQueue.shift(); item.cbs.forEach(cb=>cb(_cachedJaId));
     _jaTimer = setTimeout(_runJaQueue, 0); return;
   }
   (async () => {
@@ -914,11 +915,11 @@ function App() {
             }
           }
         }
-        // 日本語イラストIDキャッシュ
+        // 日本語イラストIDキャッシュ（false は無視して再試行させる）
         if (remoteJa && typeof remoteJa === "object") {
           let updated = false;
           for (const [id, val] of Object.entries(remoteJa)) {
-            if (!_jaCache.has(id)) { _jaCache.set(id, val); updated = true; }
+            if (val && !_jaCache.has(id)) { _jaCache.set(id, val); updated = true; }
           }
           if (updated) {
             try { localStorage.setItem(_JA_LS, JSON.stringify(Object.fromEntries(_jaCache))); } catch(e) {}
