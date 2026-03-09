@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.1";
+const APP_VERSION = "1.10.2";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -340,6 +340,11 @@ const STYLES = `
   .deck-bracket-btn.b4.on{border-color:#d47a3a;color:#d47a3a;background:rgba(212,122,58,.15);}
   .deck-bracket-btn.b5.on{border-color:#c06060;color:#c06060;background:rgba(192,96,96,.15);}
   .treasure-badge{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--gold);color:var(--gold);font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
+  .want-row{display:flex;gap:4px;align-items:stretch;}
+  .want-row .player-reg-btn{flex:1;min-width:0;}
+  .detail-treasure-btn{flex-shrink:0;width:32px;border-radius:6px;border:1px solid var(--ln2);background:none;color:var(--dim);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;opacity:0.5;}
+  .detail-treasure-btn:hover{opacity:1;border-color:var(--gold);color:var(--gold);}
+  .detail-treasure-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);background:rgba(197,165,87,.12);}
   .deck-wrap.treasure-edit-mode{cursor:pointer;}
   .treasure-btn{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--ln2);color:var(--dim);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,border-color .12s,color .12s;z-index:2;}
   .treasure-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);}
@@ -534,7 +539,7 @@ function CardTile({ card, selected, onClick }) {
 
 // ── 詳細パネル ──
 const DETAIL_DEFAULT_W = 360;
-function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemoveWant, artCtx, onSaveArt, onClose }) {
+function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemoveWant, onToggleTreasure, artCtx, onSaveArt, onClose }) {
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
@@ -698,17 +703,28 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
               <div className="section-label">欲しいカード</div>
               {players.map(p => {
                 const has = (p.wants||[]).includes(card.id);
+                const isTreasure = has && (p.treasures||[]).includes(card.id);
                 return (
-                  <button key={p.id}
-                    className={`player-reg-btn${has?" has":""}`}
-                    style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
-                    onClick={() => has ? onRemoveWant(p.id, card.id) : onAddWant(p.id, card.id, curId, p.name)}>
-                    <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
-                    <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>
-                      <span className="reg-icon-check">{has ? "✓" : "＋"}</span>
-                      <span className="reg-icon-remove" style={{ display:"none" }}>✕</span>
-                    </span>
-                  </button>
+                  <div key={p.id} className="want-row">
+                    <button
+                      className={`player-reg-btn${has?" has":""}`}
+                      style={{ borderColor:p.color, color:p.color, background:has?`${p.color}15`:"none" }}
+                      onClick={() => has ? onRemoveWant(p.id, card.id) : onAddWant(p.id, card.id, curId, p.name)}>
+                      <span style={{ fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</span>
+                      <span style={{ fontSize:9, opacity:.8, flexShrink:0 }}>
+                        <span className="reg-icon-check">{has ? "✓" : "＋"}</span>
+                        <span className="reg-icon-remove" style={{ display:"none" }}>✕</span>
+                      </span>
+                    </button>
+                    {has && (
+                      <button
+                        className={`detail-treasure-btn${isTreasure?" on":""}`}
+                        title="おたから"
+                        onClick={() => onToggleTreasure(p.id, card.id)}>
+                        💎
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1336,7 +1352,7 @@ function App() {
               </>)}
             </div>
             <DetailPane card={selectedCard} players={players}
-              onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
+              onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleTreasure={toggleTreasure} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
           </div>
         </>)}
 
@@ -1442,7 +1458,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
+                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleTreasure={toggleTreasure} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
@@ -1542,7 +1558,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
+                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleTreasure={toggleTreasure} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
