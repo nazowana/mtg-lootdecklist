@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.6";
+const APP_VERSION = "1.10.7";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -546,7 +546,7 @@ function matchesColorFilter(card, filter) {
     if (f === 'C' && ci.length === 0 && !isLand) return true;
     if (f === 'M' && ci.length > 1) return true;
     if (f === 'L' && isLand) return true;
-    if (['W','U','B','R','G'].includes(f) && ci.includes(f)) return true;
+    if (['W','U','B','R','G'].includes(f) && ci.length === 1 && ci[0] === f) return true;
   }
   return false;
 }
