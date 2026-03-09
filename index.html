@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.17";
+const APP_VERSION = "1.10.18";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1076,7 +1076,8 @@ function App() {
               const r2 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.name)}`);
               if (r2.ok) { enCard = await r2.json(); canonicalId = enCard.id; if (canonicalId !== id) anyChanged = true; }
             }
-            _cachePut(canonicalId, { id:canonicalId, n:enCard.name, j:jaName, t:enCard.type_line||"", ci:enCard.color_identity||[], co:enCard.colors||[], p:enCard.power||null, th:enCard.toughness||null, r:(enCard.rarity||"c")[0], cat:"c" });
+            const existingJ = _apiCache.get(id)?.j || _apiCache.get(canonicalId)?.j || "";
+            _cachePut(canonicalId, { id:canonicalId, n:enCard.name, j:jaName || existingJ, t:enCard.type_line||"", ci:enCard.color_identity||[], co:enCard.colors||[], p:enCard.power||null, th:enCard.toughness||null, r:(enCard.rarity||"c")[0], cat:"c" });
             idMap.set(id, canonicalId);
           } catch(e) { idMap.set(id, id); }
         }
