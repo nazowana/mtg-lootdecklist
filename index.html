@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.8";
+const APP_VERSION = "1.9.9";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -151,12 +151,16 @@ function _runJaQueue() {
       if (c1?.oracle_id) {
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=oracleid%3A${c1.oracle_id}%2Blang%3Aja&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
-        const jaCard = d2?.data?.[0];
+        // 日本語名を持つプリントを探す（DFCの場合 card_faces[0].printed_name をフォールバック）
+        const hasJaName = c => /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(c?.printed_name||c?.card_faces?.[0]?.printed_name||"");
+        const getJaName = c => c?.printed_name || c?.card_faces?.[0]?.printed_name || "";
+        const jaCard = d2?.data?.find(hasJaName) || d2?.data?.[0];
         v = jaCard?.id || false;
         // 日本語名が未保存のキャッシュエントリがあれば自動補完
-        if (jaCard?.printed_name && _apiCache.has(item.id)) {
+        const jaName0 = getJaName(jaCard);
+        if (jaName0 && _apiCache.has(item.id)) {
           const cached = _apiCache.get(item.id);
-          if (!cached.j) _cachePut(item.id, { ...cached, j: jaCard.printed_name });
+          if (!cached.j) _cachePut(item.id, { ...cached, j: jaName0 });
         }
         // 確定結果のみ保存（oracle_id が取れた場合）
         _saveJa(item.id, v);
@@ -495,10 +499,11 @@ function DeckName({ card }) {
         if (!jaId) return;
         const r = await fetch(`https://api.scryfall.com/cards/${jaId}`);
         const jc = r.ok ? await r.json() : null;
-        if (!alive || !jc?.printed_name) return;
+        const jaName1 = jc?.printed_name || jc?.card_faces?.[0]?.printed_name;
+        if (!alive || !jaName1) return;
         const cur = _apiCache.get(card.id);
-        if (cur && !cur.j) _cachePut(card.id, { ...cur, j: jc.printed_name });
-        setJname(jc.printed_name);
+        if (cur && !cur.j) _cachePut(card.id, { ...cur, j: jaName1 });
+        setJname(jaName1);
       } catch(e) {}
     })();
     return () => { alive = false; };
@@ -1027,9 +1032,10 @@ function App() {
             fetch(`https://api.scryfall.com/cards/${jaId}`)
               .then(r => r.ok ? r.json() : null)
               .then(jc => {
-                if (jc?.printed_name) {
+                const jaName2 = jc?.printed_name || jc?.card_faces?.[0]?.printed_name;
+                if (jaName2) {
                   const cur = _apiCache.get(id);
-                  if (cur && !cur.j) _cachePut(id, { ...cur, j: jc.printed_name });
+                  if (cur && !cur.j) _cachePut(id, { ...cur, j: jaName2 });
                 }
                 setPlayers(prev => [...prev]);
               })
