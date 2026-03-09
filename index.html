@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.3";
+const APP_VERSION = "1.9.4";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -972,7 +972,7 @@ function App() {
       // 日本語名が空のカードを fetchJaId でキュー投入（非同期・バックグラウンド）
       for (const id of allIds) {
         const cached = _apiCache.get(id);
-        if (cached && !cached.j) fetchJaId(id, cached.n);
+        if (cached && !cached.j) fetchJaId(id, cached.n).then(() => setPlayers(prev => [...prev]));
       }
 
 
@@ -1055,7 +1055,7 @@ function App() {
     if (card) {
       fetchJaId(cardId, card.n).then(jaId => {
         // fetchJaId 内で _apiCache.j と _jaCache が自動更新・Supabase同期される
-        if (jaId && card.j === undefined) setPlayers(prev => [...prev]);
+        if (jaId && !card.j) setPlayers(prev => [...prev]);
       });
     }
   }, [savePl, showToast]);
