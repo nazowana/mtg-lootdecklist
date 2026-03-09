@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.9";
+const APP_VERSION = "1.10.11";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -544,13 +544,14 @@ function DeckName({ card }) {
 // ── カラーフィルター ──
 function matchesColorFilter(card, filter) {
   if (!filter || filter.size === 0) return true;
-  const ci = card.ci || [];
+  const co = card.co != null ? card.co : (card.ci || []); // マナコスト色。未取得時はciでフォールバック
   const isLand = (card.t || '').includes('Land');
   for (const f of filter) {
-    if (f === 'C' && ci.length === 0 && !isLand) return true;
-    if (f === 'M' && ci.length > 1) return true;
     if (f === 'L' && isLand) return true;
-    if (['W','U','B','R','G'].includes(f) && ci.length === 1 && ci[0] === f) return true;
+    if (isLand) continue;
+    if (f === 'C' && co.length === 0) return true;
+    if (f === 'M' && co.length > 1) return true;
+    if (['W','U','B','R','G'].includes(f) && co.length === 1 && co[0] === f) return true;
   }
   return false;
 }
@@ -932,7 +933,7 @@ function ImportWantsModal({ players, onAddWant, onClose }) {
           const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
           if (!r.ok) throw new Error("not found");
           const c = await r.json();
-          card = { id:c.id, n:c.name, j:c.printed_name||c.card_faces?.[0]?.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" };
+          card = { id:c.id, n:c.name, j:c.printed_name||c.card_faces?.[0]?.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], co:c.colors||[], p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" };
           _cachePut(c.id, card);
           await new Promise(res => setTimeout(res, 110));
         }
@@ -1088,7 +1089,7 @@ function App() {
             
                   _cachePut(canonicalId, {      
                     id: canonicalId, n: enCard.name, j: jaName,      
-                    t: enCard.type_line||"", ci: enCard.color_identity||[],      
+                    t: enCard.type_line||"", ci: enCard.color_identity||[], co: enCard.colors||[],      
                     p: enCard.power||null, th: enCard.toughness||null,      
                     r: (enCard.rarity||"c")[0], cat: "c"      
                   });      
@@ -1129,7 +1130,7 @@ function App() {
             const r = await fetch(`https://api.scryfall.com/cards/${id}`);
             if (!r.ok) continue;
             const sc = await r.json();
-            _cachePut(sc.id, { id:sc.id, n:sc.name, j:sc.printed_name||sc.card_faces?.[0]?.printed_name||"", t:sc.type_line||"", ci:sc.color_identity||[], p:sc.power||null, th:sc.toughness||null, r:(sc.rarity||"c")[0], cat:"c" });
+            _cachePut(sc.id, { id:sc.id, n:sc.name, j:sc.printed_name||sc.card_faces?.[0]?.printed_name||"", t:sc.type_line||"", ci:sc.color_identity||[], co:sc.colors||[], p:sc.power||null, th:sc.toughness||null, r:(sc.rarity||"c")[0], cat:"c" });
           } catch(e) {}
         }
       }
@@ -1325,7 +1326,7 @@ function App() {
           const card = {
             id: canonicalId, n: c.name,
             j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "",
-            t: c.type_line || "", ci: c.color_identity || [],
+            t: c.type_line || "", ci: c.color_identity || [], co: c.colors || [],
             p: c.power || null, th: c.toughness || null,
             r: (c.rarity || "c")[0], cat: "c"
           };
