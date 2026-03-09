@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.15";
+const APP_VERSION = "1.10.16";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1055,103 +1055,46 @@ function App() {
       let loaded = pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] }));
       setPlayers(loaded);
 
-      // coフィールド未設定のキャッシュカードをバックグラウンドで補完
+      // バックグラウンドでUUID正規化・coフィールド補完・未キャッシュ取得を実行
+      // 対象: 未キャッシュ または co未設定 のカードのみ（処理済みはスキップ）
+      const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];
       (async () => {
-        const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];
-        const missing = allIds.filter(id => { const c = _apiCache.get(id); return c && c.co == null; });
-        for (const id of missing) {
+        const needsUpdate = allIds.filter(id => { const c = _apiCache.get(id); return !c || c.co == null; });
+        if (!needsUpdate.length) return;
+        const idMap = new Map();
+        let anyChanged = false;
+        for (const id of needsUpdate) {
           try {
             await new Promise(r => setTimeout(r, 110));
-            const r = await fetch(`https://api.scryfall.com/cards/${id}`);
-            if (!r.ok) continue;
-            const c = await r.json();
-            const cur = _apiCache.get(id);
-            if (cur) _cachePut(id, { ...cur, co: c.colors || [] });
-          } catch(e) {}
+            const r1 = await fetch(`https://api.scryfall.com/cards/${id}`);
+            if (!r1.ok) { idMap.set(id, id); continue; }
+            const c = await r1.json();
+            let canonicalId = id, enCard = c;
+            const jaName = c.printed_name || c.card_faces?.[0]?.printed_name || "";
+            if (c.lang !== "en") {
+              await new Promise(r => setTimeout(r, 110));
+              const r2 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.name)}`);
+              if (r2.ok) { enCard = await r2.json(); canonicalId = enCard.id; if (canonicalId !== id) anyChanged = true; }
+            }
+            _cachePut(canonicalId, { id:canonicalId, n:enCard.name, j:jaName, t:enCard.type_line||"", ci:enCard.color_identity||[], co:enCard.colors||[], p:enCard.power||null, th:enCard.toughness||null, r:(enCard.rarity||"c")[0], cat:"c" });
+            idMap.set(id, canonicalId);
+          } catch(e) { idMap.set(id, id); }
+        }
+        if (anyChanged) {
+          setPlayers(prev => {
+            const next = prev.map(p => ({
+              ...p,
+              decks: [...new Set((p.decks||[]).map(id => idMap.get(id)||id))],
+              wants: [...new Set((p.wants||[]).map(id => idMap.get(id)||id))],
+              loots: [...new Set((p.loots||[]).map(id => idMap.get(id)||id))],
+              arts:  Object.fromEntries(Object.entries(p.arts||{}).map(([k,v]) => [idMap.get(k)||k, v])),
+            }));
+            remoteSet(PLAYERS_KEY, next);
+            return next;
+          });
         }
       })();
 
-      /* UUID正規化・全更新処理（一時停止中）
-// 全登録カードIDを収集（decks / wants / loots）      
-            const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];      
-            
-            if (allIds.length > 0) {      
-              // UUID正規化 + 全カードデータ再取得      
-              setToast(`カードデータ更新中... 0 / ${allIds.length}`);      
-              const idMap = new Map();      
-              let anyChanged = false;      
-            
-              for (let i = 0; i < allIds.length; i++) {      
-                const id = allIds[i];      
-                if ((i % 3) === 0) setToast(`カードデータ更新中... ${i + 1} / ${allIds.length}`);      
-                try {      
-                  await new Promise(r => setTimeout(r, 80));      
-                  const r1 = await fetch(`https://api.scryfall.com/cards/${id}`);      
-                  if (!r1.ok) { idMap.set(id, id); continue; }      
-                  const c = await r1.json();      
-            
-                  let canonicalId = id;      
-                  let enCard = c;      
-                  const jaName = c.printed_name || c.card_faces?.[0]?.printed_name || "";      
-            
-                  // lang が en 以外（日本語UUIDなど）→ 英語版正規IDを取得      
-                  if (c.lang !== "en") {      
-                    await new Promise(r => setTimeout(r, 80));      
-                    const r2 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.name)}`);      
-                    if (r2.ok) {      
-                      enCard = await r2.json();      
-                      canonicalId = enCard.id;      
-                      if (canonicalId !== id) anyChanged = true;      
-                    }      
-                  }      
-            
-                  _cachePut(canonicalId, {      
-                    id: canonicalId, n: enCard.name, j: jaName,      
-                    t: enCard.type_line||"", ci: enCard.color_identity||[], co: enCard.colors||[],      
-                    p: enCard.power||null, th: enCard.toughness||null,      
-                    r: (enCard.rarity||"c")[0], cat: "c"      
-                  });      
-                  idMap.set(id, canonicalId);      
-                } catch(e) { idMap.set(id, id); }      
-              }      
-            
-              // IDが変わったプレイヤーデータを更新（重複除去）      
-              if (anyChanged) {      
-                loaded = loaded.map(p => ({      
-                  ...p,      
-                  decks:     [...new Set((p.decks||[]).map(id => idMap.get(id)||id))],      
-                  wants:     [...new Set((p.wants||[]).map(id => idMap.get(id)||id))],      
-                  loots: [...new Set((p.loots||[]).map(id => idMap.get(id)||id))],      
-                  arts:      Object.fromEntries(Object.entries(p.arts||{}).map(([k,v]) => [idMap.get(k)||k, v])),      
-                }));      
-                setPlayers(loaded);      
-                remoteSet(PLAYERS_KEY, loaded);      
-              }      
-            
-              // 日本語名がまだ空のカードを fetchJaId でキュー投入      
-              for (const newId of new Set(idMap.values())) {      
-                const card = _apiCache.get(newId);      
-                if (card && !card.j) fetchJaId(newId, card.n);      
-              }      
-            
-              setToast(`✓ ${allIds.length} 枚のカードを更新しました`);      
-              clearTimeout(toastTimer.current);      
-              toastTimer.current = setTimeout(() => setToast(""), 3000);      
-            }
-      */
-      // キャッシュにないカードをScryfallから取得し、日本語名を補完
-      const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];
-      for (const id of allIds) {
-        if (!_apiCache.has(id)) {
-          try {
-            await new Promise(r => setTimeout(r, 80));
-            const r = await fetch(`https://api.scryfall.com/cards/${id}`);
-            if (!r.ok) continue;
-            const sc = await r.json();
-            _cachePut(sc.id, { id:sc.id, n:sc.name, j:sc.printed_name||sc.card_faces?.[0]?.printed_name||"", t:sc.type_line||"", ci:sc.color_identity||[], co:sc.colors||[], p:sc.power||null, th:sc.toughness||null, r:(sc.rarity||"c")[0], cat:"c" });
-          } catch(e) {}
-        }
-      }
       // 日本語名が空のカードを補完（非同期・バックグラウンド）
       for (const id of allIds) {
         const cached = _apiCache.get(id);
