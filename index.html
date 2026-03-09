@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.6";
+const APP_VERSION = "1.9.7";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -107,13 +107,26 @@ function imgUrl(id, size="normal", face="front") {
 const _JA_LS = "mtg-ja-img-v4";
 const _jaCache = (() => {
   const m = new Map();
-  try { Object.entries(JSON.parse(localStorage.getItem(_JA_LS)||"{}")).forEach(([k,v])=>m.set(k,v)); } catch(e){}
+  try {
+    Object.entries(JSON.parse(localStorage.getItem(_JA_LS)||"{}")).forEach(([k,v]) => {
+      if (v) m.set(k, v); // false エントリは読み込まない（再試行させる）
+    });
+  } catch(e){}
   return m;
 })();
+// false エントリが残っていれば localStorage からも削除（既存ユーザー向け一回限りの修正）
+try {
+  const stored = JSON.parse(localStorage.getItem(_JA_LS)||"{}");
+  let changed = false;
+  for (const k of Object.keys(stored)) { if (!stored[k]) { delete stored[k]; changed = true; } }
+  if (changed) localStorage.setItem(_JA_LS, JSON.stringify(stored));
+} catch(e) {}
+
 const _jaQueue = []; // {id, name, cbs:[resolve...]}
 let _jaTimer = null;
 let _jaSyncTimer = null;
 function _saveJa(id, val) {
+  if (!val) return; // false は保存しない（次回起動時に再試行）
   _jaCache.set(id, val);
   try { const s=JSON.parse(localStorage.getItem(_JA_LS)||"{}"); s[id]=val; localStorage.setItem(_JA_LS,JSON.stringify(s)); } catch(e){}
   if (SUPABASE_URL) {
@@ -129,11 +142,11 @@ function _runJaQueue() {
     _jaTimer = setTimeout(_runJaQueue, 0); return;
   }
   (async () => {
+    let v = false;
     try {
       const searchName = item.name.includes(' // ') ? item.name.split(' // ')[0] : item.name;
       const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
       const c1 = r1.ok ? await r1.json() : null;
-      let v = false;
       if (c1?.oracle_id) {
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=oracleid%3A${c1.oracle_id}%2Blang%3Aja&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
@@ -144,21 +157,22 @@ function _runJaQueue() {
           const cached = _apiCache.get(item.id);
           if (!cached.j) _cachePut(item.id, { ...cached, j: jaCard.printed_name });
         }
+        // 確定結果のみ保存（oracle_id が取れた場合）
+        _saveJa(item.id, v);
       }
-      _saveJa(item.id, v);
+      // oracle_id 取得失敗（ネットワークエラー等）は保存しない → 次回再試行
+    } catch(e) {
+      // ネットワークエラー時は false を保存しない → 次回再試行
+    } finally {
       _jaQueue.shift();
       item.cbs.forEach(cb => cb(v));
-    } catch(e) {
-      _saveJa(item.id, false);
-      _jaQueue.shift();
-      item.cbs.forEach(cb => cb(false));
-    } finally {
       _jaTimer = setTimeout(_runJaQueue, 250);
     }
   })();
 }
 function fetchJaId(id, name) {
-  if (_jaCache.has(id)) return Promise.resolve(_jaCache.get(id));
+  const cached = _jaCache.get(id);
+  if (cached) return Promise.resolve(cached); // UUID がある場合のみ fast-path（false は無視してキューへ）
   return new Promise(resolve => {
     const ex = _jaQueue.find(q=>q.id===id);
     if (ex) { ex.cbs.push(resolve); return; }
