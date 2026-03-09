@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.20";
+const APP_VERSION = "1.10.21";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -498,13 +498,13 @@ function DragStrip({ className, children }) {
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
 function CardImg({ id, name, size="normal", className, style, onClick }) {
   const [err, setErr] = useState(false);
-  const [displayId, setDisplayId] = useState(() => _jaCache.get(id) || id);
+  const [displayId, setDisplayId] = useState(() => name ? (_jaCache.get(id) || id) : id);
   useEffect(() => {
     setErr(false);
+    if (!name) { setDisplayId(id); return; }
     const cached = _jaCache.get(id);
     if (cached !== undefined) { setDisplayId(cached || id); return; }
     setDisplayId(id);
-    if (!name) return;
     fetchJaId(id, name).then(jaId => setDisplayId(jaId || id));
   }, [id, name]);
   if (err) return <div className={className} style={{ display:"flex",alignItems:"center",justifyContent:"center",color:"var(--dim)",fontSize:22,...style }} onClick={onClick}>⬡</div>;
