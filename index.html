@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.16";
+const APP_VERSION = "1.10.17";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -331,16 +331,16 @@ const STYLES = `
   .decks-strip::-webkit-scrollbar-thumb{background:var(--ln2);}
   .deck-wrap{flex-shrink:0;display:flex;flex-direction:column;gap:5px;transition:transform .15s;position:relative;}
   .deck-wrap:hover{transform:translateY(-3px);}
-  .deck-img{width:72px;height:100px;border-radius:6px;object-fit:cover;object-position:top;display:block;box-shadow:0 4px 12px rgba(0,0,0,.5);}
-  .deck-img-ph{width:72px;height:100px;border-radius:6px;background:var(--bg3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;color:var(--dim);}
+  .deck-img{width:90px;height:126px;border-radius:6px;object-fit:cover;object-position:top;display:block;box-shadow:0 4px 12px rgba(0,0,0,.5);}
+  .deck-img-ph{width:90px;height:126px;border-radius:6px;background:var(--bg3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;color:var(--dim);}
   .deck-rm{position:absolute;top:-5px;right:-5px;width:16px;height:16px;background:#0a0c0e;border:1px solid #c06060;border-radius:50%;color:#c06060;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;z-index:2;}
   .deck-wrap:hover .deck-rm{opacity:1;}
   .deck-wrap.selected .deck-img{outline:2px solid var(--gold);outline-offset:2px;}
-  .deck-construction{position:absolute;top:0;left:0;width:72px;height:100px;border-radius:6px;pointer-events:none;z-index:1;background:repeating-linear-gradient(45deg,rgba(0,0,0,.9) 0px,rgba(0,0,0,.9) 4px,rgba(220,175,0,.95) 4px,rgba(220,175,0,.95) 8px);-webkit-mask:linear-gradient(#fff,#fff) 4px 4px/calc(100% - 8px) calc(100% - 8px) no-repeat,linear-gradient(#fff,#fff);-webkit-mask-composite:xor;mask:linear-gradient(#fff,#fff) 4px 4px/calc(100% - 8px) calc(100% - 8px) no-repeat,linear-gradient(#fff,#fff);mask-composite:exclude;}
-  .deck-construction-label{position:absolute;top:0;left:0;width:72px;height:100px;border-radius:6px;pointer-events:none;z-index:2;display:flex;align-items:center;justify-content:center;}
+  .deck-construction{position:absolute;top:0;left:0;width:90px;height:126px;border-radius:6px;pointer-events:none;z-index:1;background:repeating-linear-gradient(45deg,rgba(0,0,0,.9) 0px,rgba(0,0,0,.9) 4px,rgba(220,175,0,.95) 4px,rgba(220,175,0,.95) 8px);-webkit-mask:linear-gradient(#fff,#fff) 4px 4px/calc(100% - 8px) calc(100% - 8px) no-repeat,linear-gradient(#fff,#fff);-webkit-mask-composite:xor;mask:linear-gradient(#fff,#fff) 4px 4px/calc(100% - 8px) calc(100% - 8px) no-repeat,linear-gradient(#fff,#fff);mask-composite:exclude;}
+  .deck-construction-label{position:absolute;top:0;left:0;width:90px;height:126px;border-radius:6px;pointer-events:none;z-index:2;display:flex;align-items:center;justify-content:center;}
   .deck-construction-label span{background:rgba(0,0,0,.72);color:rgba(220,175,0,.95);font-size:7.5px;font-family:'Noto Sans JP',sans-serif;font-weight:700;padding:3px 4px;border-radius:3px;letter-spacing:.04em;line-height:1.4;text-align:center;border:1px solid rgba(220,175,0,.5);}
   .deck-wrap:not(.edit-mode){cursor:pointer;}
-  .deck-name{font-size:9px;color:var(--mut);text-align:center;width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .deck-name{font-size:9px;color:var(--mut);text-align:center;width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .deck-bracket-badge{position:absolute;top:5px;left:5px;min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:rgba(0,0,0,.78);font-size:9px;font-family:'IBM Plex Mono',monospace;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:.02em;}
   .deck-bracket-badge.b1{border:1px solid #7ab87a;color:#7ab87a;}
   .deck-bracket-badge.b2{border:1px solid #7aaed4;color:#7aaed4;}
@@ -442,11 +442,11 @@ const STYLES = `
     .player-name-txt{font-size:10px;}
     .player-deck-count{font-size:9px;}
     .decks-strip{padding:10px 8px;gap:8px;}
-    .deck-img{width:56px;height:78px;}
-    .deck-img-ph{width:56px;height:78px;}
-    .deck-construction{width:56px;height:78px;}
-    .deck-construction-label{width:56px;height:78px;}
-    .deck-name{width:56px;}
+    .deck-img{width:70px;height:98px;}
+    .deck-img-ph{width:70px;height:98px;}
+    .deck-construction{width:70px;height:98px;}
+    .deck-construction-label{width:70px;height:98px;}
+    .deck-name{width:70px;}
     .deck-bracket-btn{width:11px;height:11px;font-size:7px;}
   }
 
