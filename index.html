@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "1.10.1";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -248,7 +248,8 @@ const STYLES = `
   .detail-close{background:none;border:1px solid var(--ln2);border-radius:3px;padding:4px 12px;color:var(--mut);font-family:'IBM Plex Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:.08em;align-self:stretch;}
   .detail-close:hover{border-color:var(--mut);color:var(--txt);}
   .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;cursor:zoom-in;}
-  .print-wrap{position:relative;}
+  .print-wrap{display:flex;justify-content:center;}
+  .print-img-wrap{position:relative;width:100%;max-width:328px;}
   .face-flip-btn{position:absolute;bottom:10px;right:10px;background:rgba(10,12,14,.82);border:1.5px solid var(--gold);border-radius:5px;color:var(--gold);font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:6px 12px;letter-spacing:.08em;font-weight:600;transition:all .15s;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
   .face-flip-btn:hover{background:rgba(197,165,87,.18);box-shadow:0 2px 12px rgba(197,165,87,.3);}
   [data-theme="light"] .face-flip-btn{background:rgba(245,241,235,.9);border-color:var(--gold);}
@@ -626,22 +627,24 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
       <div className="detail-inner">
         <button className="detail-close" onClick={onClose}>✕ 閉じる</button>
         <div className="print-wrap">
-          {faceIdx === 1
-            ? <img src={imgUrl(curId, "normal", "back")} alt="" className="detail-img" onClick={() => setLightbox(true)} />
-            : <CardImg id={curId} size="normal" className="detail-img" onClick={() => setLightbox(true)} />}
-          {isDfc && (
-            <button className="face-flip-btn" onClick={() => setFaceIdx(f => 1 - f)}>
-              {faceIdx === 0 ? "↺ 裏面" : "↺ 表面"}
-            </button>
-          )}
-          {multi && <>
-            <button className="print-nav l" onClick={prev}>‹</button>
-            <button className="print-nav r" onClick={next}>›</button>
-            <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].lang.toUpperCase()}{isDfc ? (faceIdx===0?" / 表":"/ 裏") : ""}</div>
-          </>}
+          <div className="print-img-wrap">
+            {faceIdx === 1
+              ? <img src={imgUrl(curId, "normal", "back")} alt="" className="detail-img" onClick={() => setLightbox(true)} />
+              : <CardImg id={curId} size="normal" className="detail-img" onClick={() => setLightbox(true)} />}
+            {isDfc && (
+              <button className="face-flip-btn" onClick={() => setFaceIdx(f => 1 - f)}>
+                {faceIdx === 0 ? "↺ 裏面" : "↺ 表面"}
+              </button>
+            )}
+            {multi && <>
+              <button className="print-nav l" onClick={prev}>‹</button>
+              <button className="print-nav r" onClick={next}>›</button>
+              <div className="print-counter">{printIdx + 1} / {prints.length}　{prints[printIdx].lang.toUpperCase()}{isDfc ? (faceIdx===0?" / 表":"/ 裏") : ""}</div>
+            </>}
+          </div>
         </div>
         {multi && (
-          <div className={`print-thumbs${panelWidth===DETAIL_DEFAULT_W?" wrap":""}`} ref={thumbsRef} onMouseDown={panelWidth===DETAIL_DEFAULT_W?undefined:onThumbsMouseDown}>
+          <div className="print-thumbs wrap" ref={thumbsRef}>
             {prints.map((p, i) => {
               const isSelected = i === printIdx;
               const thumbFace = isSelected && faceIdx === 1 && p.dfc ? "back" : "front";
