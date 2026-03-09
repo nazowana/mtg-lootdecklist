@@ -1,36 +1,37 @@
-# MTG VAULT — Claude Code 引き継ぎドキュメント
+# MTG LOOT VAULT — Claude Code 引き継ぎドキュメント
 
 ## プロジェクト概要
 Magic: The Gathering の統率者（Commander）デッキ管理ツール。
-複数プレイヤーが「誰がどの統率者デッキを持っているか」を共有・確認するためのWebアプリ。
+複数プレイヤーが「誰がどの統率者デッキ・欲しいカードを持っているか」を共有・確認するためのWebアプリ。
 
 ## ファイル構成
 ```
-mtg-vault.html       # メインアプリ（これ1ファイルで動作する）
-commanders.json      # Scryfallから取得した統率者カードデータ（3141枚）
+index.html   # メインアプリ（これ1ファイルで動作する）
 ```
+※ `commanders.json` は廃止済み。カードデータはすべてScryfall APIからオンデマンド取得し、キャッシュに保存する。
 
 ## 技術スタック
 - **フロントエンド**: React 18（CDN）+ Babel standalone（JSXトランスパイル）
-- **スタイル**: CSS-in-JS（`<style>`タグ内に記述）
+- **スタイル**: `<style>`タグ内CSS（ダーク/ライトテーマ対応、`data-theme`属性で切り替え）
 - **フォント**: Google Fonts（Cinzel, IBM Plex Mono, Noto Sans JP）
 - **カード画像**: Scryfall CDN `https://cards.scryfall.io/{size}/front/{id[0]}/{id[1]}/{id}.jpg`
-- **カードデータ**: Scryfallから事前取得してHTMLに埋め込み済み（起動時の通信ゼロ）
+- **カードデータ**: Scryfall APIから検索時に取得し、`_apiCache`（localStorage + Supabase）にキャッシュ
 
 ## データ構造
 
-### カードデータ（commanders.json の各要素）
+### カードデータ（`_apiCache` の各エントリ）
 ```json
 {
-  "id": "396f9198-...",   // Scryfall UUID（画像URLの構築に使用）
+  "id": "396f9198-...",   // Scryfall UUID（英語版正規ID）
   "n": "Abdel Adrian",   // 英語名
   "j": "ゴライオンの養子、アブデル・エイドリアン",  // 日本語名（なければ空文字）
   "t": "Legendary Creature — Human Warrior",  // タイプライン
-  "ci": ["W"],            // 色アイデンティティ配列 W/U/B/R/G
-  "p": "4",               // パワー（nullの場合あり）
-  "th": "4",              // タフネス（nullの場合あり）
-  "r": "u",               // レアリティ m/r/u/c/s の1文字
-  "cat": "c"              // カテゴリ c=クリーチャー / v=機体 / s=テキスト指定
+  "ci": ["W"],           // カラーアイデンティティ（起動型能力の色も含む）
+  "co": ["W"],           // マナコストの色のみ（カラーフィルタで使用）
+  "p": "4",              // パワー（nullの場合あり）
+  "th": "4",             // タフネス（nullの場合あり）
+  "r": "u",              // レアリティ m/r/u/c/s の1文字
+  "cat": "c"             // カテゴリ c=クリーチャー / v=機体 / s=テキスト指定
 }
 ```
 
@@ -38,25 +39,37 @@ commanders.json      # Scryfallから取得した統率者カードデータ（3
 ```json
 [
   {
-    "id": "1234567890",     // タイムスタンプ
+    "id": "1234567890",      // タイムスタンプ
     "name": "Alice",
-    "color": "#c5a557",     // アバターカラー
-    "decks": ["396f9198-...", "bf708169-..."]  // 登録済み統率者のScryfall UUID配列
+    "color": "#c5a557",      // アバターカラー
+    "decks": ["396f9198-...", "bf708169-..."],   // 統率者デッキのScryfall UUID配列
+    "wants": ["abc123-...", "def456-..."],        // 欲しいカードのScryfall UUID配列
+    "loots": ["abc123-..."],                      // おたから（優先欲しいカード）UUID配列
+    "arts": { "396f9198-...": "alternative-uuid" }, // カスタム画像UUID（カード別）
+    "brackets": { "396f9198-...": 3 }            // デッキのブラケット評価（1〜5）
   }
 ]
 ```
 
 ## ストレージ
 
-### 現在の実装（HTML内）
+### Supabase設定（現在は設定済み）
 ```js
-const SUPABASE_URL = "";       // 未設定 = localStorageで動作
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://cpvpowzwahhuxbhgqdtq.supabase.co";
+const SUPABASE_ANON_KEY = "...";
 const STORAGE_TABLE = "mtg_vault";
 ```
 
-- **Supabase未設定時**: `localStorage` にキー `cmd-players-v1` で保存（単一ブラウザのみ）
+### ストレージキー一覧
+| キー | 内容 | 形式 |
+|---|---|---|
+| `cmd-players-v1` | プレイヤーデータ | JSON配列 |
+| `cmd-card-cache-v1` | カードデータキャッシュ | `[[uuid, cardObj], ...]`（Mapエントリ形式） |
+| `mtg-ja-img-v4` | 日本語画像UUID | `{ uuid: jaUuid }` オブジェクト |
+
 - **Supabase設定時**: REST APIでリモート保存、5秒ポーリングで全員に同期
+- **Supabase未設定時**: `localStorage`のみで動作（単一ブラウザのみ）
+- カードキャッシュ・日本語画像UUIDは変更から3秒後にSupabaseへデバウンス同期
 
 ### Supabaseテーブル定義
 ```sql
@@ -71,60 +84,52 @@ create policy "public" on mtg_vault for all using (true);
 ## アプリ機能
 
 ### SEARCHタブ
-- 統率者名（英語・日本語）でインクリメンタル検索
+- **統率者モード**: `_apiCache`内を英語/日本語名でインクリメンタル検索
+- **全カードモード**: Scryfall API（`/cards/search`）をデバウンスで検索（全カード対象）
 - グリッド形式でカードイラスト表示
-- カードクリックで右パネルに拡大表示＋プレイヤーへのデッキ登録ボタン
+- カードクリックで右パネル（DetailPane）に拡大表示
+  - パネル幅をドラッグで調整可能（左端のリサイズハンドル）
+  - 画像クリックでライトボックス（全画面ズーム）表示
+  - 各プレイヤーへのデッキ登録ボタン / 欲しいカード登録ボタン
+  - 欲しいカード横に「💎 おたから」トグルボタン
 
-### PLAYERSタブ
-- プレイヤー追加（名前＋カラー選択）
-- 各プレイヤーの行に登録済みデッキのイラストを横並びで表示
-- 「✎ 編集」モードでデッキ削除・プレイヤー削除
+### 統率者デッキタブ
+- プレイヤー追加（名前＋カラー選択・HEXカスタム入力対応）
+- 各プレイヤーの行に登録済みデッキのイラストをサムネイル表示
+- **ブラケットモード**: デッキごとに強さ評価（1〜5）をバッジ表示・編集
+- **削除モード**: デッキ削除・プレイヤー削除
+- カラーフィルターバー（マナコスト色で絞り込み）
+
+### 欲しいカードタブ
+- 各プレイヤーの欲しいカード（wants）をサムネイル表示
+- **おたからモード（💎）**: `loots`に登録されたカードを先頭にソート
+- **インポート**: カード名テキストをScryfall APIで一括検索して登録
+- **削除モード**: カード削除・プレイヤー削除
+- カラーフィルターバー（マナコスト色で絞り込み）
+
+### カラーフィルターバー
+```
+[白][青][黒][赤][緑][⛰土地][◇無色] | [多色] [✕ クリア]
+```
+- 単色（白/青/黒/赤/緑）: `co`（マナコスト色）が1色でその色のみのカードにマッチ
+- 無色（◇）: `co`が空のカード
+- 多色: `co`が2色以上のカード（金色ボタン）
+- 土地（⛰）: タイプラインに"Land"を含むカード（色フィルタと独立）
+- 複数選択時はOR条件
+- 統率者デッキ・欲しいカードタブ両方に表示
+
+## バージョン管理ルール
+- `APP_VERSION` は `index.html` の85行目付近に定義
+- 通常変更: `1.xx.yy`（パッチ番号を1ずつ上げる）
+- 大きな変更（新規ページや新たな仕組み）のみ: `1.(xx+1).0`
+- 変更するたびにバージョンを上げ → コミット → プッシュまで行う
+
+## リポジトリ
+- GitHub: https://github.com/nazowana/mtg-lootdecklist
+- デプロイ: GitHub Pages（mainブランチへのプッシュで自動反映）
 
 ## 今後の改善候補（未実装）
 - Supabase Realtime（WebSocket）によるポーリングレスのリアルタイム同期
 - デッキ名のカスタム入力（現状は統率者名のみ）
-- カード詳細にオラクルテキスト表示（Scryfall APIから追加取得が必要）
-- モバイル対応レイアウト
-- デプロイ（Netlify推奨: HTMLファイルをドラッグ�アンドドロップするだけ）
-
-## commanders.json の再生成方法
-Scryfallから再取得する場合（新セット追加時など）:
-```bash
-python3 << 'EOF'
-import subprocess, json, time
-
-def fetch(url):
-    r = subprocess.run(["curl","-s","-A","MTGVault/1.0",url], capture_output=True, text=True)
-    return json.loads(r.stdout)
-
-def fetch_all(url):
-    cards = []
-    while url:
-        d = fetch(url)
-        cards.extend(d["data"])
-        url = d.get("next_page") if d.get("has_more") else None
-        time.sleep(0.11)
-    return cards
-
-en = fetch_all("https://api.scryfall.com/cards/search?q=is%3Acommander&order=name&unique=cards")
-jp = fetch_all("https://api.scryfall.com/cards/search?q=is%3Acommander+lang%3Aja&order=name&unique=cards")
-jp_map = {c["name"]: c.get("printed_name","") for c in jp if c.get("printed_name")}
-
-def cat(c):
-    t = c.get("type_line",""); txt = (c.get("oracle_text") or "").lower()
-    if ("Vehicle" in t or "Spacecraft" in t) and "Creature" not in t: return "v"
-    if "can be your commander" in txt and "Creature" not in t: return "s"
-    return "c"
-
-result = sorted([{
-    "id":c["id"],"n":c["name"],"j":jp_map.get(c["name"],""),
-    "t":c.get("type_line",""),"ci":c.get("color_identity",[]),
-    "p":c.get("power"),"th":c.get("toughness"),
-    "r":(c.get("rarity","common") or "c")[0],"cat":cat(c)
-} for c in en], key=lambda x: x["n"])
-
-with open("commanders.json","w") as f:
-    json.dump(result, f, ensure_ascii=False, separators=(',',':'))
-print(f"Done: {len(result)} cards")
-EOF
-```
+- カード詳細にオラクルテキスト表示
+- モバイルレイアウトのさらなる最適化
