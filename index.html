@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.4";
+const APP_VERSION = "1.9.5";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -969,10 +969,29 @@ function App() {
           } catch(e) {}
         }
       }
-      // 日本語名が空のカードを fetchJaId でキュー投入（非同期・バックグラウンド）
+      // 日本語名が空のカードを補完（非同期・バックグラウンド）
       for (const id of allIds) {
         const cached = _apiCache.get(id);
-        if (cached && !cached.j) fetchJaId(id, cached.n).then(() => setPlayers(prev => [...prev]));
+        if (!cached || cached.j) continue;
+        if (!_jaCache.has(id)) {
+          // UUID未取得 → fetchJaId キュー経由（APIから日本語UUIDと名前を取得）
+          fetchJaId(id, cached.n).then(() => setPlayers(prev => [...prev]));
+        } else {
+          const jaId = _jaCache.get(id);
+          if (jaId) {
+            // UUID取得済み・名前未取得 → 日本語カードを直接取得して名前を補完
+            fetch(`https://api.scryfall.com/cards/${jaId}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(jc => {
+                if (jc?.printed_name) {
+                  const cur = _apiCache.get(id);
+                  if (cur && !cur.j) _cachePut(id, { ...cur, j: jc.printed_name });
+                }
+                setPlayers(prev => [...prev]);
+              })
+              .catch(() => {});
+          }
+        }
       }
 
 
