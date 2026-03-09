@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.2";
+const APP_VERSION = "1.10.3";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -339,16 +339,16 @@ const STYLES = `
   .deck-bracket-btn.b3.on{border-color:#c5a557;color:#c5a557;background:rgba(197,165,87,.15);}
   .deck-bracket-btn.b4.on{border-color:#d47a3a;color:#d47a3a;background:rgba(212,122,58,.15);}
   .deck-bracket-btn.b5.on{border-color:#c06060;color:#c06060;background:rgba(192,96,96,.15);}
-  .treasure-badge{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--gold);color:var(--gold);font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
+  .loot-badge{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--gold);color:var(--gold);font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
   .want-row{display:flex;gap:4px;align-items:stretch;}
   .want-row .player-reg-btn{flex:1;min-width:0;}
-  .detail-treasure-btn{flex-shrink:0;width:32px;border-radius:6px;border:1px solid var(--ln2);background:none;color:var(--dim);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;opacity:0.5;}
-  .detail-treasure-btn:hover{opacity:1;border-color:var(--gold);color:var(--gold);}
-  .detail-treasure-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);background:rgba(197,165,87,.12);}
-  .deck-wrap.treasure-edit-mode{cursor:pointer;}
-  .treasure-btn{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--ln2);color:var(--dim);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,border-color .12s,color .12s;z-index:2;}
-  .treasure-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);}
-  .deck-wrap:hover .treasure-btn{opacity:1;}
+  .detail-loot-btn{flex-shrink:0;width:32px;border-radius:6px;border:1px solid var(--ln2);background:none;color:var(--dim);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;opacity:0.5;}
+  .detail-loot-btn:hover{opacity:1;border-color:var(--gold);color:var(--gold);}
+  .detail-loot-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);background:rgba(197,165,87,.12);}
+  .deck-wrap.loot-edit-mode{cursor:pointer;}
+  .loot-btn{position:absolute;top:5px;left:5px;width:16px;height:16px;border-radius:3px;background:rgba(0,0,0,.78);border:1px solid var(--ln2);color:var(--dim);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,border-color .12s,color .12s;z-index:2;}
+  .loot-btn.on{opacity:1;border-color:var(--gold);color:var(--gold);}
+  .deck-wrap:hover .loot-btn{opacity:1;}
   .empty-decks{color:var(--dim);font-size:11px;font-family:'Cinzel',serif;letter-spacing:.06em;}
   .no-players-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;padding:60px;}
   .no-players-msg .big{font-size:32px;opacity:.1;}
@@ -539,7 +539,7 @@ function CardTile({ card, selected, onClick }) {
 
 // ── 詳細パネル ──
 const DETAIL_DEFAULT_W = 360;
-function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemoveWant, onToggleTreasure, artCtx, onSaveArt, onClose }) {
+function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemoveWant, onToggleLoot, artCtx, onSaveArt, onClose }) {
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
@@ -703,7 +703,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
               <div className="section-label">欲しいカード</div>
               {players.map(p => {
                 const has = (p.wants||[]).includes(card.id);
-                const isTreasure = has && (p.treasures||[]).includes(card.id);
+                const isLoot = has && (p.loots||[]).includes(card.id);
                 return (
                   <div key={p.id} className="want-row">
                     <button
@@ -718,9 +718,9 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
                     </button>
                     {has && (
                       <button
-                        className={`detail-treasure-btn${isTreasure?" on":""}`}
-                        title="おたから"
-                        onClick={() => onToggleTreasure(p.id, card.id)}>
+                        className={`detail-loot-btn${isLoot?" on":""}`}
+                        title="loot"
+                        onClick={() => onToggleLoot(p.id, card.id)}>
                         💎
                       </button>
                     )}
@@ -796,7 +796,7 @@ function AddPlayerModal({ onAdd, onClose }) {
   const [color, setColor] = useState(PLAYER_COLORS[0]);
   const submit = () => {
     const n = name.trim(); if (!n) return;
-    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[], arts:{}, treasures:[] });
+    onAdd({ id: Date.now().toString(), name:n, color, decks:[], wants:[], arts:{}, loots:[] });
     onClose();
   };
   return (
@@ -935,8 +935,8 @@ function App() {
   }, [darkMode]);
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [showImportWants, setShowImportWants] = useState(false);
-  const [treasureMode, setTreasureMode] = useState(false);
-  const [treasureOrder, setTreasureOrder] = useState(null); // { playerId: cardId[] } 編集開始時のスナップショット
+  const [lootMode, setLootMode] = useState(false);
+  const [lootOrder, setLootOrder] = useState(null); // { playerId: cardId[] } 編集開始時のスナップショット
   const [editingPlayer, setEditingPlayer] = useState(null); // player object | null
   const [toast, setToast]               = useState("");
   const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
@@ -982,12 +982,12 @@ function App() {
 
       const pl = await remoteGet(PLAYERS_KEY);
       if (!pl) return;
-      let loaded = pl.map(p => ({ wants:[], arts:{}, treasures:[], ...p }));
+      let loaded = pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] }));
       setPlayers(loaded);
 
       /* UUID正規化・全更新処理（一時停止中）
-// 全登録カードIDを収集（decks / wants / treasures）      
-            const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.treasures||[])]))];      
+// 全登録カードIDを収集（decks / wants / loots）      
+            const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];      
             
             if (allIds.length > 0) {      
               // UUID正規化 + 全カードデータ再取得      
@@ -1035,7 +1035,7 @@ function App() {
                   ...p,      
                   decks:     [...new Set((p.decks||[]).map(id => idMap.get(id)||id))],      
                   wants:     [...new Set((p.wants||[]).map(id => idMap.get(id)||id))],      
-                  treasures: [...new Set((p.treasures||[]).map(id => idMap.get(id)||id))],      
+                  loots: [...new Set((p.loots||[]).map(id => idMap.get(id)||id))],      
                   arts:      Object.fromEntries(Object.entries(p.arts||{}).map(([k,v]) => [idMap.get(k)||k, v])),      
                 }));      
                 setPlayers(loaded);      
@@ -1054,7 +1054,7 @@ function App() {
             }
       */
       // キャッシュにないカードをScryfallから取得し、日本語名を補完
-      const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.treasures||[])]))];
+      const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];
       for (const id of allIds) {
         if (!_apiCache.has(id)) {
           try {
@@ -1102,7 +1102,7 @@ function App() {
     if (!SUPABASE_URL) return;
     const t = setInterval(async () => {
       const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, treasures:[], ...p })));
+      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] })));
     }, 5000);
     return () => clearInterval(t);
   }, []);
@@ -1184,13 +1184,13 @@ function App() {
     });
   }, [savePl]);
 
-  const toggleTreasure = useCallback((playerId, cardId) => {
+  const toggleLoot = useCallback((playerId, cardId) => {
     setPlayers(prev => {
       const n = prev.map(p => {
         if (p.id !== playerId) return p;
-        const ts = p.treasures || [];
+        const ts = p.loots || [];
         const next = ts.includes(cardId) ? ts.filter(d=>d!==cardId) : [...ts, cardId];
-        return { ...p, treasures: next };
+        return { ...p, loots: next };
       });
       savePl(n); return n;
     });
@@ -1352,7 +1352,7 @@ function App() {
               </>)}
             </div>
             <DetailPane card={selectedCard} players={players}
-              onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleTreasure={toggleTreasure} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
+              onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleLoot={toggleLoot} artCtx={null} onSaveArt={saveArt} onClose={closeDetail} />
           </div>
         </>)}
 
@@ -1458,7 +1458,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleTreasure={toggleTreasure} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
+                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleLoot={toggleLoot} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
@@ -1473,24 +1473,24 @@ function App() {
               {players.length > 0 && (<>
                 <div className="wants-toolbar-break" />
                 <button className="btn primary" onClick={() => setShowImportWants(true)}>⇩ インポート</button>
-                <button className={`btn primary${treasureMode?" active":""}`} onClick={() => {
-                  if (!treasureMode) {
+                <button className={`btn primary${lootMode?" active":""}`} onClick={() => {
+                  if (!lootMode) {
                     const order = {};
                     players.forEach(p => {
-                      const ts = p.treasures||[];
+                      const ts = p.loots||[];
                       order[p.id] = [...(p.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
                     });
-                    setTreasureOrder(order);
-                    setTreasureMode(true);
+                    setLootOrder(order);
+                    setLootMode(true);
                     setEditMode(false);
                   } else {
-                    setTreasureMode(false);
-                    setTreasureOrder(null);
+                    setLootMode(false);
+                    setLootOrder(null);
                   }
                 }}>
-                  {treasureMode ? "✓ 完了" : "☆ おたから"}
+                  {lootMode ? "✓ 完了" : "☆ おたから"}
                 </button>
-                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setTreasureMode(false); setTreasureOrder(null); }}>
+                <button className={`btn danger${editMode?" active":""}`} onClick={() => { setEditMode(p=>!p); setLootMode(false); setLootOrder(null); }}>
                   {editMode ? "✓ 完了" : "✕ 削除"}
                 </button>
               </>)}
@@ -1526,28 +1526,28 @@ function App() {
                         {(player.wants||[]).length===0 ? (
                           <div className="empty-decks">SEARCHタブからカードを追加してください</div>
                         ) : (() => {
-                          const ts = player.treasures||[];
-                          const sorted = treasureMode && treasureOrder?.[player.id]
-                            ? treasureOrder[player.id].filter(id => (player.wants||[]).includes(id))
+                          const ts = player.loots||[];
+                          const sorted = lootMode && lootOrder?.[player.id]
+                            ? lootOrder[player.id].filter(id => (player.wants||[]).includes(id))
                             : [...(player.wants||[])].sort((a,b) => ts.includes(a)&&!ts.includes(b)?-1:!ts.includes(a)&&ts.includes(b)?1:0);
                           return sorted.map(cardId => {
                             const card = cardById(cardId);
                             if (!card) return null;
-                            const isTreasure = ts.includes(cardId);
+                            const isLoot = ts.includes(cardId);
                             return (
                               <div key={cardId}
-                                className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}${treasureMode?" treasure-edit-mode":""}`}
+                                className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}${lootMode?" loot-edit-mode":""}`}
                                 onClick={() => {
                                   if (editMode) return;
-                                  if (treasureMode) { toggleTreasure(player.id, cardId); return; }
+                                  if (lootMode) { toggleLoot(player.id, cardId); return; }
                                   const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id;
                                   setSelectedCard(sel?null:card);
                                   setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId});
                                 }}>
                                 <CardImg id={player.arts?.[cardId] || cardId} name={(!player.arts?.[cardId]||player.arts[cardId]===cardId)?card.n:undefined} size="normal"
-                                  className="deck-img" style={treasureMode&&!isTreasure?{filter:"grayscale(1)",opacity:.45}:undefined} />
+                                  className="deck-img" style={lootMode&&!isLoot?{filter:"grayscale(1)",opacity:.45}:undefined} />
                                 {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
-                                {isTreasure && <div className="treasure-badge">☆</div>}
+                                {isLoot && <div className="loot-badge">☆</div>}
                                 <div className="deck-name"><DeckName card={card} /></div>
                               </div>
                             );
@@ -1558,7 +1558,7 @@ function App() {
                   ))}
                 </div>
                 <DetailPane card={selectedCard} players={players}
-                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleTreasure={toggleTreasure} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
+                  onAddDeck={addDeck} onAddWant={addWant} onRemoveDeck={removeDeck} onRemoveWant={removeWant} onToggleLoot={toggleLoot} artCtx={selectedArtCtx} onSaveArt={saveArt} onClose={closeDetail} />
               </div>
             )}
           </div>
