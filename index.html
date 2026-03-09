@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.1";
+const APP_VERSION = "1.9.2";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -956,6 +956,25 @@ function App() {
               toastTimer.current = setTimeout(() => setToast(""), 3000);      
             }
       */
+      // キャッシュにないカードをScryfallから取得し、日本語名を補完
+      const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.treasures||[])]))];
+      for (const id of allIds) {
+        if (!_apiCache.has(id)) {
+          try {
+            await new Promise(r => setTimeout(r, 80));
+            const r = await fetch(`https://api.scryfall.com/cards/${id}`);
+            if (!r.ok) continue;
+            const sc = await r.json();
+            _cachePut(sc.id, { id:sc.id, n:sc.name, j:sc.printed_name||sc.card_faces?.[0]?.printed_name||"", t:sc.type_line||"", ci:sc.color_identity||[], p:sc.power||null, th:sc.toughness||null, r:(sc.rarity||"c")[0], cat:"c" });
+          } catch(e) {}
+        }
+      }
+      // 日本語名が空のカードを fetchJaId でキュー投入（非同期・バックグラウンド）
+      for (const id of allIds) {
+        const cached = _apiCache.get(id);
+        if (cached && !cached.j) fetchJaId(id, cached.n);
+      }
+
 
       setPlayers(prev => [...prev]); // 再レンダリングして表示更新
     })();
