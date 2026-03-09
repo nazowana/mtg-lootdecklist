@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MTG LOOT VAULT — Commander Registry</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -81,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.11";
+const APP_VERSION = "1.10.12";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -285,10 +286,10 @@ const STYLES = `
 
   /* COLOR FILTER BAR */
   .color-filter-bar{display:flex;gap:5px;padding:8px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center;background:var(--bg2);flex-shrink:0;}
-  .cf-pip{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;transition:all .15s;opacity:.35;flex-shrink:0;}
-  .cf-pip.cf-pip-icon{font-size:11px;font-weight:400;}
-  .cf-pip.on{opacity:1;box-shadow:0 0 0 2px rgba(255,255,255,.45);}
-  .cf-pip:hover{opacity:.75;}
+  .cf-pip{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;opacity:.4;flex-shrink:0;background:none;padding:0;}
+  .cf-pip i.ms{font-size:22px;line-height:1;}
+  .cf-pip.on{opacity:1;border-color:rgba(255,255,255,.5);box-shadow:0 0 6px rgba(255,255,255,.25);}
+  .cf-pip:hover{opacity:.78;}
   .cf-tag{padding:2px 9px;border-radius:10px;border:1px solid var(--ln2);cursor:pointer;font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--mut);letter-spacing:.06em;transition:all .15s;opacity:.55;background:none;}
   .cf-tag.on{border-color:var(--gold);color:var(--gold);opacity:1;background:rgba(197,165,87,.1);}
   .cf-tag:hover{opacity:.85;}
@@ -557,13 +558,13 @@ function matchesColorFilter(card, filter) {
 }
 
 const CF_PIPS = [
-  { key:'W', label:'白', bg:'#f0ede0', fg:'#555' },
-  { key:'U', label:'青', bg:'#4a90d9', fg:'#fff' },
-  { key:'B', label:'黒', bg:'#3a3a3a', fg:'#ccc' },
-  { key:'R', label:'赤', bg:'#d95040', fg:'#fff' },
-  { key:'G', label:'緑', bg:'#3a8050', fg:'#fff' },
-  { key:'L', icon:'⛰', title:'土地', bg:'#6b5230', fg:'#e8d4a0' },
-  { key:'C', icon:'◇', title:'無色', bg:'#888', fg:'#fff' },
+  { key:'W', ms:'ms-w',        title:'白（モノホワイト）' },
+  { key:'U', ms:'ms-u',        title:'青（モノブルー）' },
+  { key:'B', ms:'ms-b',        title:'黒（モノブラック）' },
+  { key:'R', ms:'ms-r',        title:'赤（モノレッド）' },
+  { key:'G', ms:'ms-g',        title:'緑（モノグリーン）' },
+  { key:'L', ms:'ms-land',     title:'土地' },
+  { key:'C', ms:'ms-c',        title:'無色' },
 ];
 const CF_TAGS = [
   { key:'M', label:'多色', gold:true },
@@ -572,10 +573,10 @@ const CF_TAGS = [
 function ColorFilterBar({ filter, onToggle, onClear }) {
   return (
     <div className="color-filter-bar">
-      {CF_PIPS.map(({key, label, icon, title, bg, fg}) => (
-        <button key={key} className={`cf-pip${icon?' cf-pip-icon':''}${filter.has(key)?' on':''}`}
-          style={{background:bg, color:fg}} onClick={() => onToggle(key)} title={title||label}>
-          {icon || label}
+      {CF_PIPS.map(({key, ms, title}) => (
+        <button key={key} className={`cf-pip${filter.has(key)?' on':''}`}
+          onClick={() => onToggle(key)} title={title}>
+          <i className={`ms ms-cost ms-shadow ${ms}`} />
         </button>
       ))}
       <div className="cf-sep" />
