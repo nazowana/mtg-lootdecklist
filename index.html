@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.19";
+const APP_VERSION = "1.10.20";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1465,7 +1465,7 @@ function App() {
                           return (
                             <div key={cardId} className={`deck-wrap${selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id?" selected":""}`}
                               onClick={() => { if(editMode||bracketMode) return; const sel=selectedCard?.id===cardId&&selectedArtCtx?.playerId===player.id; setSelectedCard(sel?null:card); setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId}); }}>
-                              <CardImg id={player.arts?.[cardId] || cardId} name={player.arts?.[cardId] ? undefined : card.n} size="normal" className="deck-img"
+                              <CardImg id={player.arts?.[cardId] || cardId} size="normal" className="deck-img"
                                 style={!bracketMode&&!br?{filter:"brightness(.6)"}:undefined} />
                               {!bracketMode && !br && <div className="deck-construction" />}
                               {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeDeck(player.id, cardId); }}>✕</button>}
@@ -1577,7 +1577,7 @@ function App() {
                                   setSelectedCard(sel?null:card);
                                   setSelectedArtCtx(sel?null:{playerId:player.id,cardId,artId:player.arts?.[cardId]||_jaCache.get(cardId)||cardId});
                                 }}>
-                                <CardImg id={player.arts?.[cardId] || cardId} name={(!player.arts?.[cardId]||player.arts[cardId]===cardId)?card.n:undefined} size="normal"
+                                <CardImg id={player.arts?.[cardId] || cardId} size="normal"
                                   className="deck-img" style={lootMode&&!isLoot?{filter:"grayscale(1)",opacity:.45}:undefined} />
                                 {editMode && <button className="deck-rm" onClick={e => { e.stopPropagation(); removeWant(player.id, cardId); }}>✕</button>}
                                 {isLoot && <div className="loot-badge">💎</div>}
