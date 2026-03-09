@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.12";
+const APP_VERSION = "1.10.15";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -286,8 +286,8 @@ const STYLES = `
 
   /* COLOR FILTER BAR */
   .color-filter-bar{display:flex;gap:5px;padding:8px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center;background:var(--bg2);flex-shrink:0;}
-  .cf-pip{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;opacity:.4;flex-shrink:0;background:none;padding:0;}
-  .cf-pip i.ms{font-size:22px;line-height:1;}
+  .cf-pip{border-radius:50%;border:2px solid transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;opacity:.4;flex-shrink:0;background:none;padding:1px;}
+  .cf-pip i.ms{font-size:24px;display:block;}
   .cf-pip.on{opacity:1;border-color:rgba(255,255,255,.5);box-shadow:0 0 6px rgba(255,255,255,.25);}
   .cf-pip:hover{opacity:.78;}
   .cf-tag{padding:2px 9px;border-radius:10px;border:1px solid var(--ln2);cursor:pointer;font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--mut);letter-spacing:.06em;transition:all .15s;opacity:.55;background:none;}
@@ -444,6 +444,7 @@ const STYLES = `
     .decks-strip{padding:10px 8px;gap:8px;}
     .deck-img{width:56px;height:78px;}
     .deck-img-ph{width:56px;height:78px;}
+    .deck-construction{width:56px;height:78px;}
     .deck-construction-label{width:56px;height:78px;}
     .deck-name{width:56px;}
     .deck-bracket-btn{width:11px;height:11px;font-size:7px;}
@@ -1053,6 +1054,22 @@ function App() {
       if (!pl) return;
       let loaded = pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] }));
       setPlayers(loaded);
+
+      // coフィールド未設定のキャッシュカードをバックグラウンドで補完
+      (async () => {
+        const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];
+        const missing = allIds.filter(id => { const c = _apiCache.get(id); return c && c.co == null; });
+        for (const id of missing) {
+          try {
+            await new Promise(r => setTimeout(r, 110));
+            const r = await fetch(`https://api.scryfall.com/cards/${id}`);
+            if (!r.ok) continue;
+            const c = await r.json();
+            const cur = _apiCache.get(id);
+            if (cur) _cachePut(id, { ...cur, co: c.colors || [] });
+          } catch(e) {}
+        }
+      })();
 
       /* UUID正規化・全更新処理（一時停止中）
 // 全登録カードIDを収集（decks / wants / loots）      
