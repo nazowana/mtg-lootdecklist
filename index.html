@@ -81,7 +81,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.9.9";
+const APP_VERSION = "2.0.0";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -232,16 +232,22 @@ const STYLES = `
   .tile-name-jp{font-family:'Noto Sans JP',sans-serif;font-size:11px;color:#6e9070;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
 
   /* DETAIL PANE */
-  .detail-pane{width:360px;min-width:360px;background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;}
+  .detail-pane{width:360px;min-width:360px;background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;position:relative;flex-shrink:0;}
   .detail-pane.hidden{width:0;min-width:0;overflow:hidden;}
   .detail-pane::-webkit-scrollbar{width:4px;}
   .detail-pane::-webkit-scrollbar-thumb{background:var(--ln2);}
-  .detail-inner{padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-width:360px;}
+  .detail-inner{padding:18px 16px;display:flex;flex-direction:column;gap:14px;}
+  .detail-resize{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:10;transition:background .15s;}
+  .detail-resize:hover,.detail-resize.resizing{background:rgba(197,165,87,.25);}
+  .img-lightbox{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88);cursor:zoom-out;animation:lb-in .15s ease;}
+  @keyframes lb-in{from{opacity:0}to{opacity:1}}
+  .img-lightbox img{max-width:min(480px,92vw);max-height:92vh;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.8);cursor:default;}
+  .print-thumbs.wrap{flex-wrap:wrap;overflow-x:hidden;cursor:default;}
   .reg-cols{display:flex;gap:10px;}
   .reg-col{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;}
   .detail-close{background:none;border:1px solid var(--ln2);border-radius:3px;padding:4px 12px;color:var(--mut);font-family:'IBM Plex Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:.08em;align-self:stretch;}
   .detail-close:hover{border-color:var(--mut);color:var(--txt);}
-  .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;}
+  .detail-img{width:100%;border-radius:var(--radius);box-shadow:0 8px 28px rgba(0,0,0,.65);display:block;cursor:zoom-in;}
   .print-wrap{position:relative;}
   .face-flip-btn{position:absolute;bottom:10px;right:10px;background:rgba(10,12,14,.82);border:1.5px solid var(--gold);border-radius:5px;color:var(--gold);font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:6px 12px;letter-spacing:.08em;font-weight:600;transition:all .15s;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
   .face-flip-btn:hover{background:rgba(197,165,87,.18);box-shadow:0 2px 12px rgba(197,165,87,.3);}
@@ -403,6 +409,7 @@ const STYLES = `
 
     /* DetailPane: 全画面オーバーレイ */
     .detail-pane{position:fixed;inset:0;width:100%!important;min-width:0!important;z-index:300;border-left:none;}
+    .detail-resize{display:none;}
     .detail-pane.hidden{display:none;}
 
     /* プレイヤー行 */
@@ -465,7 +472,7 @@ function DragStrip({ className, children }) {
 }
 
 // ── 画像コンポーネント（ブラウザ環境では直接URLが使える）──
-function CardImg({ id, name, size="normal", className, style }) {
+function CardImg({ id, name, size="normal", className, style, onClick }) {
   const [err, setErr] = useState(false);
   const [displayId, setDisplayId] = useState(() => _jaCache.get(id) || id);
   useEffect(() => {
@@ -476,9 +483,9 @@ function CardImg({ id, name, size="normal", className, style }) {
     if (!name) return;
     fetchJaId(id, name).then(jaId => setDisplayId(jaId || id));
   }, [id, name]);
-  if (err) return <div className={className} style={{ display:"flex",alignItems:"center",justifyContent:"center",color:"var(--dim)",fontSize:22,...style }}>⬡</div>;
+  if (err) return <div className={className} style={{ display:"flex",alignItems:"center",justifyContent:"center",color:"var(--dim)",fontSize:22,...style }} onClick={onClick}>⬡</div>;
   return <img src={imgUrl(displayId, size)} alt="" className={className} style={style}
-    onError={() => setErr(true)} />;
+    onClick={onClick} onError={() => setErr(true)} />;
 }
 
 // ── デッキ名（日本語優先・自律取得）──
@@ -525,13 +532,27 @@ function CardTile({ card, selected, onClick }) {
 }
 
 // ── 詳細パネル ──
+const DETAIL_DEFAULT_W = 360;
 function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemoveWant, artCtx, onSaveArt, onClose }) {
   const [prints, setPrints] = useState([]);
   const [printIdx, setPrintIdx] = useState(0);
   const [displayId, setDisplayId] = useState(null);
   const [faceIdx, setFaceIdx] = useState(0);
+  const [panelWidth, setPanelWidth] = useState(DETAIL_DEFAULT_W);
+  const [lightbox, setLightbox] = useState(false);
   const thumbsRef = useRef(null);
   const dragRef = useRef({ moved: false });
+
+  const onResizeDown = e => {
+    e.preventDefault();
+    const startX = e.clientX, startW = panelWidth;
+    const handle = e.currentTarget;
+    handle.classList.add("resizing");
+    const onMove = ev => setPanelWidth(Math.max(280, Math.min(700, startW + (startX - ev.clientX))));
+    const onUp = () => { handle.classList.remove("resizing"); document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   const onThumbsMouseDown = e => {
     const el = thumbsRef.current; if (!el) return;
@@ -593,19 +614,21 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
   const next = () => goTo((printIdx + 1) % prints.length);
 
   if (!card) return <div className="detail-pane hidden" />;
+  const paneStyle = { width: panelWidth, minWidth: panelWidth };
 
   const curId = displayId || _jaCache.get(card.id) || card.id;
   const multi = prints.length > 1;
   const isDfc = prints[printIdx]?.dfc;
 
   return (
-    <div className="detail-pane">
+    <div className="detail-pane" style={paneStyle}>
+      <div className="detail-resize" onMouseDown={onResizeDown} />
       <div className="detail-inner">
         <button className="detail-close" onClick={onClose}>✕ 閉じる</button>
         <div className="print-wrap">
           {faceIdx === 1
-            ? <img src={imgUrl(curId, "normal", "back")} alt="" className="detail-img" />
-            : <CardImg id={curId} size="normal" className="detail-img" />}
+            ? <img src={imgUrl(curId, "normal", "back")} alt="" className="detail-img" onClick={() => setLightbox(true)} />
+            : <CardImg id={curId} size="normal" className="detail-img" onClick={() => setLightbox(true)} />}
           {isDfc && (
             <button className="face-flip-btn" onClick={() => setFaceIdx(f => 1 - f)}>
               {faceIdx === 0 ? "↺ 裏面" : "↺ 表面"}
@@ -618,7 +641,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
           </>}
         </div>
         {multi && (
-          <div className="print-thumbs" ref={thumbsRef} onMouseDown={onThumbsMouseDown}>
+          <div className={`print-thumbs${panelWidth===DETAIL_DEFAULT_W?" wrap":""}`} ref={thumbsRef} onMouseDown={panelWidth===DETAIL_DEFAULT_W?undefined:onThumbsMouseDown}>
             {prints.map((p, i) => {
               const isSelected = i === printIdx;
               const thumbFace = isSelected && faceIdx === 1 && p.dfc ? "back" : "front";
@@ -693,6 +716,12 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
           </div>
         )}
       </div>
+      {lightbox && (
+        <div className="img-lightbox" onClick={() => setLightbox(false)}>
+          <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt=""
+            onClick={e => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 }
