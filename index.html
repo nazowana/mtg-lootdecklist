@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.28";
+const APP_VERSION = "1.10.29";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -158,11 +158,17 @@ function _runJaQueue() {
         const getJaName = c => c?.printed_name || c?.card_faces?.[0]?.printed_name || "";
         const jaCard = d2?.data?.find(hasJaName) || d2?.data?.[0];
         v = jaCard?.id || false;
-        // 日本語名が未保存のキャッシュエントリがあれば自動補完
+        // 日本語名・タイプ・テキストが未保存のキャッシュエントリがあれば自動補完
         const jaName0 = getJaName(jaCard);
-        if (jaName0 && _apiCache.has(item.id)) {
+        const jaType0 = jaCard?.printed_type_line || jaCard?.card_faces?.[0]?.printed_type_line || "";
+        const jaText0 = jaCard?.printed_text    || jaCard?.card_faces?.[0]?.printed_text    || "";
+        if (_apiCache.has(item.id)) {
           const cached = _apiCache.get(item.id);
-          if (!cached.j) _cachePut(item.id, { ...cached, j: jaName0 });
+          const upd = {};
+          if (jaName0 && !cached.j)  upd.j  = jaName0;
+          if (jaType0 && !cached.jt) upd.jt = jaType0;
+          if (jaText0 && !cached.jx) upd.jx = jaText0;
+          if (Object.keys(upd).length) _cachePut(item.id, { ...cached, ...upd });
         }
         // 確定結果のみ保存（oracle_id が取れた場合）
         _saveJa(item.id, v);
@@ -532,10 +538,18 @@ function DeckName({ card }) {
         const r = await fetch(`https://api.scryfall.com/cards/${jaId}`);
         const jc = r.ok ? await r.json() : null;
         const jaName1 = jc?.printed_name || jc?.card_faces?.[0]?.printed_name;
-        if (!alive || !jaName1) return;
+        if (!alive) return;
         const cur = _apiCache.get(card.id);
-        if (cur && !cur.j) _cachePut(card.id, { ...cur, j: jaName1 });
-        setJname(jaName1);
+        if (cur) {
+          const upd = {};
+          if (jaName1 && !cur.j)  upd.j  = jaName1;
+          const jaType1 = jc?.printed_type_line || jc?.card_faces?.[0]?.printed_type_line;
+          const jaText1 = jc?.printed_text    || jc?.card_faces?.[0]?.printed_text;
+          if (jaType1 && !cur.jt) upd.jt = jaType1;
+          if (jaText1 && !cur.jx) upd.jx = jaText1;
+          if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
+        }
+        if (jaName1) setJname(jaName1);
       } catch(e) {}
     })();
     return () => { alive = false; };
@@ -1116,9 +1130,15 @@ function App() {
               .then(r => r.ok ? r.json() : null)
               .then(jc => {
                 const jaName2 = jc?.printed_name || jc?.card_faces?.[0]?.printed_name;
-                if (jaName2) {
-                  const cur = _apiCache.get(id);
-                  if (cur && !cur.j) _cachePut(id, { ...cur, j: jaName2 });
+                const jaType2 = jc?.printed_type_line || jc?.card_faces?.[0]?.printed_type_line;
+                const jaText2 = jc?.printed_text    || jc?.card_faces?.[0]?.printed_text;
+                const cur = _apiCache.get(id);
+                if (cur) {
+                  const upd = {};
+                  if (jaName2 && !cur.j)  upd.j  = jaName2;
+                  if (jaType2 && !cur.jt) upd.jt = jaType2;
+                  if (jaText2 && !cur.jx) upd.jx = jaText2;
+                  if (Object.keys(upd).length) _cachePut(id, { ...cur, ...upd });
                 }
                 setPlayers(prev => [...prev]);
               })
