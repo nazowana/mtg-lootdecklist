@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.40";
+const APP_VERSION = "1.10.41";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -282,6 +282,8 @@ const STYLES = `
   .detail-img-ph{width:100%;aspect-ratio:63/88;border-radius:var(--radius);background:var(--bg3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:32px;}
   .detail-name{font-family:'Cinzel',serif;font-size:12px;font-weight:600;color:#d8d0c0;letter-spacing:.04em;line-height:1.4;text-align:center;}
   .detail-jp{font-family:'Noto Sans JP',sans-serif;font-size:13px;color:#7a9a7a;text-align:center;}
+  .detail-jt{font-size:10px;color:var(--mut);text-align:center;margin-top:2px;}
+  .detail-jx{font-family:'Noto Sans JP',sans-serif;font-size:11px;color:var(--fg);line-height:1.65;white-space:pre-wrap;margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:6px;max-height:160px;overflow-y:auto;scrollbar-width:thin;}
   .detail-type{font-size:9px;color:var(--mut);text-align:center;line-height:1.5;}
   .detail-pips{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;}
   .detail-pip{width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.75);}
@@ -845,6 +847,8 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         })()}
         <div className="detail-name">{card.n}</div>
         {card.j && <div className="detail-jp">{card.j}</div>}
+        {jaInfo.jt && <div className="detail-jt">{jaInfo.jt}</div>}
+        {jaInfo.jx && <div className="detail-jx">{jaInfo.jx}</div>}
         {players.length > 0 ? (
           <div className="reg-cols">
             <div className="reg-col">
