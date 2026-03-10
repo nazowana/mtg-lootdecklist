@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.29";
+const APP_VERSION = "1.10.30";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -554,7 +554,7 @@ function DeckName({ card }) {
     })();
     return () => { alive = false; };
   }, [card?.id]);
-  return jname || card?.n || "";
+  return jname || card?.j || card?.n || "";
 }
 
 // ── カードタイル ──
@@ -1291,7 +1291,7 @@ function App() {
         // カード名・オラクルテキスト・タイプラインをOR検索（英語クエリのみ拡張）
         const expandedQ = isJa ? q : (q.includes(' ') ? `(${q} OR o:"${q}" OR t:"${q}")` : `(${q} OR o:${q} OR t:${q})`);
         const enQ = encodeURIComponent(expandedQ);
-        const jaQ = `lang%3Aja+${encodeURIComponent(q)}`;
+        const jaQ = `lang%3Aja+${encodeURIComponent(isJa ? q : expandedQ)}`;
         const base = "https://api.scryfall.com/cards/search?order=name&unique=cards&q=";
         const filter = searchMode === "commander" ? "is%3Acommander+" : "";
 
