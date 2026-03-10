@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.27";
+const APP_VERSION = "1.10.28";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1268,7 +1268,9 @@ function App() {
     const timer = setTimeout(async () => {
       try {
         const isJa = /[\u3040-\u9FFF]/.test(q);
-        const enQ = encodeURIComponent(q);
+        // カード名・オラクルテキスト・タイプラインをOR検索（英語クエリのみ拡張）
+        const expandedQ = isJa ? q : (q.includes(' ') ? `(${q} OR o:"${q}" OR t:"${q}")` : `(${q} OR o:${q} OR t:${q})`);
+        const enQ = encodeURIComponent(expandedQ);
         const jaQ = `lang%3Aja+${encodeURIComponent(q)}`;
         const base = "https://api.scryfall.com/cards/search?order=name&unique=cards&q=";
         const filter = searchMode === "commander" ? "is%3Acommander+" : "";
