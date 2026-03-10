@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.39";
+const APP_VERSION = "1.10.40";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -251,6 +251,7 @@ const STYLES = `
   @keyframes lb-in{from{opacity:0}to{opacity:1}}
   .img-lightbox img{max-width:min(480px,92vw);max-height:65vh;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.8);cursor:default;}
   .lb-container{display:flex;flex-direction:column;align-items:center;gap:12px;max-height:96vh;overflow-y:auto;cursor:default;}
+  .lb-name{max-width:min(480px,92vw);font-family:'Noto Sans JP','Cinzel',sans-serif;font-size:15px;font-weight:700;color:rgba(255,255,255,.95);text-align:center;letter-spacing:.03em;}
   .lb-text{max-width:min(480px,92vw);color:rgba(255,255,255,.92);font-family:'Noto Sans JP','IBM Plex Mono',sans-serif;text-align:left;overflow-y:auto;max-height:28vh;scrollbar-width:thin;}
   .lb-type{font-size:12px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:4px;letter-spacing:.04em;}
   .lb-oracle{font-size:13px;line-height:1.7;white-space:pre-wrap;}
@@ -904,6 +905,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         <div className="img-lightbox" onClick={() => setLightbox(false)}>
           <div className="lb-container" onClick={e => e.stopPropagation()}>
             <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt="" />
+            {(card.j || card.n) && <div className="lb-name">{card.j || card.n}</div>}
             {(jaInfo.jt || jaInfo.jx) ? (
               <div className="lb-text">
                 {jaInfo.jt && <div className="lb-type">{jaInfo.jt}</div>}
