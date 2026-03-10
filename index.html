@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.37";
+const APP_VERSION = "1.10.38";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -249,9 +249,9 @@ const STYLES = `
   .detail-resize:hover,.detail-resize.resizing{background:rgba(197,165,87,.25);}
   .img-lightbox{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88);cursor:zoom-out;animation:lb-in .15s ease;}
   @keyframes lb-in{from{opacity:0}to{opacity:1}}
-  .img-lightbox img{max-width:min(480px,92vw);max-height:92vh;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.8);cursor:default;}
-  .lb-container{display:flex;flex-direction:column;align-items:center;gap:12px;max-height:96vh;cursor:default;}
-  .lb-text{max-width:min(480px,92vw);color:rgba(255,255,255,.92);font-family:'Noto Sans JP','IBM Plex Mono',sans-serif;text-align:left;overflow-y:auto;max-height:30vh;scrollbar-width:thin;}
+  .img-lightbox img{max-width:min(480px,92vw);max-height:65vh;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.8);cursor:default;}
+  .lb-container{display:flex;flex-direction:column;align-items:center;gap:12px;max-height:96vh;overflow-y:auto;cursor:default;}
+  .lb-text{max-width:min(480px,92vw);color:rgba(255,255,255,.92);font-family:'Noto Sans JP','IBM Plex Mono',sans-serif;text-align:left;overflow-y:auto;max-height:28vh;scrollbar-width:thin;}
   .lb-type{font-size:12px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:4px;letter-spacing:.04em;}
   .lb-oracle{font-size:13px;line-height:1.7;white-space:pre-wrap;}
   .print-thumbs.wrap{flex-wrap:wrap;overflow-x:hidden;cursor:default;}
