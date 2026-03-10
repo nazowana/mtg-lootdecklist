@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.43";
+const APP_VERSION = "1.10.44";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -840,9 +840,8 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
           );
         })()}
         <div className="detail-name">{card.n}</div>
-        {card.t && <div className="detail-type">{card.t}</div>}
         {card.j && <div className="detail-jp">{card.j}</div>}
-        {(jaInfo.jt || (jaStatus !== "loading" && !jaInfo.jt && card.t)) &&
+        {(jaInfo.jt || (jaStatus !== "loading" && card.t)) &&
           <div className="detail-jt">{jaInfo.jt || card.t}</div>}
         {(jaInfo.jx || (jaStatus !== "loading" && !jaInfo.jx && enOracle)) &&
           <div className="detail-jx">{jaInfo.jx || enOracle}</div>}
