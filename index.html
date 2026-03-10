@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.36";
+const APP_VERSION = "1.10.37";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -634,6 +634,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
   const [panelWidth, setPanelWidth] = useState(DETAIL_DEFAULT_W);
   const [lightbox, setLightbox] = useState(false);
   const [jaInfo, setJaInfo] = useState({ jt: "", jx: "" });
+  const [jaStatus, setJaStatus] = useState("idle"); // idle | loading | done | none
   const thumbsRef = useRef(null);
   const dragRef = useRef({ moved: false });
 
@@ -678,35 +679,49 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
     setPrintIdx(0);
     setFaceIdx(0);
     const cached = _apiCache.get(card.id);
-    setJaInfo({ jt: cached?.jt || "", jx: cached?.jx || "" });
+    const initJt = cached?.jt || "", initJx = cached?.jx || "";
+    setJaInfo({ jt: initJt, jx: initJx });
+    setJaStatus(initJt || initJx ? "done" : "loading");
     let cancelled = false;
-    // fetchJaId 経由で jt/jx を確実に補完（DeckName と同じ信頼性の高いパス）
+    let jaResolved = false;
+    const _resolveJa = (jt, jx) => {
+      if (cancelled || jaResolved) return;
+      jaResolved = true;
+      if (jt || jx) {
+        setJaInfo(prev => ({ jt: prev.jt || jt, jx: prev.jx || jx }));
+        setJaStatus("done");
+        const c = _apiCache.get(card.id);
+        if (c) {
+          const upd = {};
+          if (jt && !c.jt) upd.jt = jt;
+          if (jx && !c.jx) upd.jx = jx;
+          if (Object.keys(upd).length) _cachePut(card.id, { ...c, ...upd });
+        }
+      } else {
+        setJaStatus("none");
+      }
+    };
+    // fetchJaId 経由で jt/jx を確実に補完
     fetchJaId(card.id, card.n).then(jaId => {
       if (cancelled) return;
+      console.log("[jaInfo] fetchJaId resolved", card.n, "jaId=", jaId);
       const cur = _apiCache.get(card.id);
-      // _runJaQueue がキャッシュ更新済みなら反映
+      console.log("[jaInfo] cache jt=", cur?.jt, "jx=", cur?.jx?.slice?.(0,30));
       if (cur?.jt || cur?.jx) {
-        setJaInfo(prev => ({ jt: prev.jt || cur.jt || "", jx: prev.jx || cur.jx || "" }));
+        _resolveJa(cur.jt || "", cur.jx || "");
         return;
       }
-      // _runJaQueue が printed_type_line/printed_text を取得できなかった場合: 直接フェッチ
-      if (!jaId) return;
+      if (!jaId) { _resolveJa("", ""); return; }
       fetch(`https://api.scryfall.com/cards/${jaId}`)
         .then(r => r.ok ? r.json() : null)
         .then(jc => {
-          if (cancelled || !jc) return;
-          const jt = jc.printed_type_line || jc.card_faces?.[0]?.printed_type_line || "";
-          const jx = jc.printed_text || jc.card_faces?.[0]?.printed_text || "";
-          if (!jt && !jx) return;
-          setJaInfo(prev => ({ jt: prev.jt || jt, jx: prev.jx || jx }));
-          const c = _apiCache.get(card.id);
-          if (c) {
-            const upd = {};
-            if (jt && !c.jt) upd.jt = jt;
-            if (jx && !c.jx) upd.jx = jx;
-            if (Object.keys(upd).length) _cachePut(card.id, { ...c, ...upd });
-          }
-        });
+          if (cancelled) return;
+          console.log("[jaInfo] /cards/jaId response lang=", jc?.lang, "printed_type_line=", jc?.printed_type_line);
+          const jt = jc?.printed_type_line || jc?.card_faces?.[0]?.printed_type_line || "";
+          const jx = jc?.printed_text || jc?.card_faces?.[0]?.printed_text || "";
+          _resolveJa(jt, jx);
+        })
+        .catch(() => { if (!cancelled) _resolveJa("", ""); });
     });
     (async () => {
       try {
@@ -722,20 +737,25 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
           .map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }))
           .sort((a, b) => (a.lang==='ja'?0:1) - (b.lang==='ja'?0:1));
         // 日本語カードから jt/jx をキャッシュに保存 & state更新
-        const cur = _apiCache.get(card.id);
         const jaCard = rawData.find(c => c.lang === 'ja');
+        console.log("[jaInfo] prints search jaCard=", jaCard?.id, "printed_type_line=", jaCard?.printed_type_line);
         if (jaCard) {
           const jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line || "";
           const jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text || "";
-          if (cur) {
-            const upd = {};
-            if (jt && !cur.jt) upd.jt = jt;
-            if (jx && !cur.jx) upd.jx = jx;
-            if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
+          console.log("[jaInfo] prints search jt=", jt?.slice?.(0,30), "jx=", jx?.slice?.(0,30));
+          if (!jaResolved) _resolveJa(jt, jx);
+          else {
+            // すでに fetchJaId パスで解決済みの場合でも、キャッシュは更新する
+            const cur = _apiCache.get(card.id);
+            if (cur) {
+              const upd = {};
+              if (jt && !cur.jt) upd.jt = jt;
+              if (jx && !cur.jx) upd.jx = jx;
+              if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
+            }
           }
-          if (!cancelled) setJaInfo(prev => ({ jt: prev.jt || jt || cur?.jt || "", jx: prev.jx || jx || cur?.jx || "" }));
-        } else if (!cancelled) {
-          setJaInfo(prev => ({ jt: prev.jt || cur?.jt || "", jx: prev.jx || cur?.jx || "" }));
+        } else if (!jaResolved && !cancelled) {
+          _resolveJa("", "");
         }
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
@@ -754,8 +774,10 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
   useEffect(() => {
     if (!lightbox || !card) return;
     const cur = _apiCache.get(card.id);
-    if (!cur?.jt && !cur?.jx) return;
-    setJaInfo(prev => ({ jt: prev.jt || cur.jt || "", jx: prev.jx || cur.jx || "" }));
+    if (cur?.jt || cur?.jx) {
+      setJaInfo(prev => ({ jt: prev.jt || cur.jt || "", jx: prev.jx || cur.jx || "" }));
+      setJaStatus("done");
+    }
   }, [lightbox]);
 
   const goTo = (idx) => { setPrintIdx(idx); setDisplayId(prints[idx].id); setFaceIdx(0); };
@@ -882,12 +904,20 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         <div className="img-lightbox" onClick={() => setLightbox(false)}>
           <div className="lb-container" onClick={e => e.stopPropagation()}>
             <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt="" />
-            {(jaInfo.jt || jaInfo.jx) && (
+            {(jaInfo.jt || jaInfo.jx) ? (
               <div className="lb-text">
                 {jaInfo.jt && <div className="lb-type">{jaInfo.jt}</div>}
                 {jaInfo.jx && <div className="lb-oracle">{jaInfo.jx}</div>}
               </div>
-            )}
+            ) : jaStatus === "loading" ? (
+              <div className="lb-text" style={{ opacity: 0.5 }}>
+                <div className="lb-type">取得中…</div>
+              </div>
+            ) : jaStatus === "none" ? (
+              <div className="lb-text" style={{ opacity: 0.4 }}>
+                <div className="lb-type">日本語版なし</div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

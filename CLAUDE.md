@@ -136,6 +136,7 @@ create policy "public" on mtg_vault for all using (true);
 - 通常変更: `1.xx.yy`（パッチ番号を1ずつ上げる）
 - 大きな変更（新規ページや新たな仕組み）のみ: `1.(xx+1).0`
 - 変更するたびにバージョンを上げ → コミット → プッシュまで行う
+- **コミットメッセージのタイトルはバージョン名を先頭に置く**（例: `(v1.10.xx) 機能追加の説明`）
 
 ## リポジトリ
 - GitHub: https://github.com/nazowana/mtg-lootdecklist
