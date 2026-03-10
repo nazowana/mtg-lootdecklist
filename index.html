@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.32";
+const APP_VERSION = "1.10.33";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -426,6 +426,7 @@ const STYLES = `
     .topbar{flex-wrap:wrap;height:auto;padding:8px 12px 0;}
     .logo{font-size:11px;margin-right:auto;}
     .logo small{display:none;}
+    .logo .ver{display:inline;font-size:7px;margin-top:0;margin-left:6px;}
     .main-tabs{order:9;width:calc(100% + 24px);margin:6px -12px 0;border-top:1px solid var(--line);height:38px;}
     .main-tab{flex:1;padding:0 4px;font-size:9px;letter-spacing:.03em;}
     .spacer{display:none;}
@@ -632,6 +633,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
   const [faceIdx, setFaceIdx] = useState(0);
   const [panelWidth, setPanelWidth] = useState(DETAIL_DEFAULT_W);
   const [lightbox, setLightbox] = useState(false);
+  const [jaInfo, setJaInfo] = useState({ jt: "", jx: "" });
   const thumbsRef = useRef(null);
   const dragRef = useRef({ moved: false });
 
@@ -675,6 +677,8 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
     setPrints([]);
     setPrintIdx(0);
     setFaceIdx(0);
+    const cached = _apiCache.get(card.id);
+    setJaInfo({ jt: cached?.jt || "", jx: cached?.jx || "" });
     let cancelled = false;
     (async () => {
       try {
@@ -689,18 +693,19 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         const data = rawData
           .map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }))
           .sort((a, b) => (a.lang==='ja'?0:1) - (b.lang==='ja'?0:1));
-        // 日本語カードから jt/jx をキャッシュに保存
+        // 日本語カードから jt/jx をキャッシュに保存 & state更新
         const cur = _apiCache.get(card.id);
-        if (cur && (!cur.jt || !cur.jx)) {
-          const jaCard = rawData.find(c => c.lang === 'ja');
-          if (jaCard) {
-            const upd = {};
-            const jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line;
-            const jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text;
-            if (jt && !cur.jt) upd.jt = jt;
-            if (jx && !cur.jx) upd.jx = jx;
-            if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
-          }
+        const jaCard = rawData.find(c => c.lang === 'ja');
+        if (jaCard && cur) {
+          const jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line || "";
+          const jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text || "";
+          const upd = {};
+          if (jt && !cur.jt) upd.jt = jt;
+          if (jx && !cur.jx) upd.jx = jx;
+          if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
+          if (!cancelled) setJaInfo({ jt: jt || cur.jt || "", jx: jx || cur.jx || "" });
+        } else if (cur && !cancelled) {
+          setJaInfo({ jt: cur.jt || "", jx: cur.jx || "" });
         }
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
@@ -835,22 +840,19 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
           </div>
         )}
       </div>
-      {lightbox && (() => {
-        const live = _apiCache.get(card.id) || card;
-        return (
-          <div className="img-lightbox" onClick={() => setLightbox(false)}>
-            <div className="lb-container" onClick={e => e.stopPropagation()}>
-              <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt="" />
-              {(live.jt || live.jx) && (
-                <div className="lb-text">
-                  {live.jt && <div className="lb-type">{live.jt}</div>}
-                  {live.jx && <div className="lb-oracle">{live.jx}</div>}
-                </div>
-              )}
-            </div>
+      {lightbox && (
+        <div className="img-lightbox" onClick={() => setLightbox(false)}>
+          <div className="lb-container" onClick={e => e.stopPropagation()}>
+            <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt="" />
+            {(jaInfo.jt || jaInfo.jx) && (
+              <div className="lb-text">
+                {jaInfo.jt && <div className="lb-type">{jaInfo.jt}</div>}
+                {jaInfo.jx && <div className="lb-oracle">{jaInfo.jx}</div>}
+              </div>
+            )}
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }
