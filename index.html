@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.23";
+const APP_VERSION = "1.10.24";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1014,6 +1014,7 @@ function App() {
   const [apiResults, setApiResults]     = useState(null);
   const [apiLoading, setApiLoading]     = useState(false);
   const [apiTotalCards, setApiTotalCards] = useState(null);
+  const [cmdTotalCards, setCmdTotalCards] = useState(null);
   const inputRef   = useRef(null);
   const toastTimer = useRef(null);
 
@@ -1240,6 +1241,15 @@ function App() {
 
   const closeDetail = useCallback(() => { setSelectedCard(null); setSelectedArtCtx(null); }, []);
 
+  // 統率者モード: 総枚数取得
+  useEffect(() => {
+    if (cmdTotalCards !== null) return;
+    fetch("https://api.scryfall.com/cards/search?q=is%3Acommander&unique=cards&page=1")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.total_cards) setCmdTotalCards(d.total_cards); })
+      .catch(() => {});
+  }, [cmdTotalCards]);
+
   // 全カードモード: 総枚数取得
   useEffect(() => {
     if (searchMode !== "all" || apiTotalCards !== null) return;
@@ -1337,7 +1347,7 @@ function App() {
               <span className="si">⌕</span>
               <input ref={inputRef}
                 placeholder={searchMode==="commander"
-                  ? `統率者名を検索… (英語・日本語対応)`
+                  ? `統率者名を検索… (${cmdTotalCards ? cmdTotalCards.toLocaleString()+" 枚対象" : "読み込み中…"})`
                   : `カード名を検索… (${apiTotalCards ? apiTotalCards.toLocaleString()+" 枚対象" : "読み込み中…"})`}
                 value={query} onChange={e => setQuery(e.target.value)} />
               {query && <button className="cx" onClick={() => { setQuery(""); setSelectedCard(null); setApiResults(null); inputRef.current?.focus(); }}>✕</button>}
@@ -1363,7 +1373,7 @@ function App() {
                   <div className="hint-txt">
                     {searchMode==="commander" ? <>
                       統率者名（英語または日本語）を入力して検索<br />
-                      Scryfall の全統率者が対象です
+                      <span className="hint-num">{cmdTotalCards ? cmdTotalCards.toLocaleString()+" 枚" : "…"}</span> の統率者が対象です
                     </> : <>
                       カード名（英語・日本語）を入力して検索<br />
                       <span className="hint-num">{apiTotalCards ? apiTotalCards.toLocaleString()+" 枚" : "…"}</span> の全カードが対象です
