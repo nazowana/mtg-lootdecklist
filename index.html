@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.33";
+const APP_VERSION = "1.10.34";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -696,16 +696,18 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         // 日本語カードから jt/jx をキャッシュに保存 & state更新
         const cur = _apiCache.get(card.id);
         const jaCard = rawData.find(c => c.lang === 'ja');
-        if (jaCard && cur) {
+        if (jaCard) {
           const jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line || "";
           const jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text || "";
-          const upd = {};
-          if (jt && !cur.jt) upd.jt = jt;
-          if (jx && !cur.jx) upd.jx = jx;
-          if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
-          if (!cancelled) setJaInfo({ jt: jt || cur.jt || "", jx: jx || cur.jx || "" });
-        } else if (cur && !cancelled) {
-          setJaInfo({ jt: cur.jt || "", jx: cur.jx || "" });
+          if (cur) {
+            const upd = {};
+            if (jt && !cur.jt) upd.jt = jt;
+            if (jx && !cur.jx) upd.jx = jx;
+            if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
+          }
+          if (!cancelled) setJaInfo({ jt: jt || cur?.jt || "", jx: jx || cur?.jx || "" });
+        } else if (!cancelled) {
+          setJaInfo({ jt: cur?.jt || "", jx: cur?.jx || "" });
         }
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
@@ -719,6 +721,14 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
     })();
     return () => { cancelled = true; };
   }, [card?.id]);
+
+  // ライトボックスを開くとき、_runJaQueue 等が更新したキャッシュから jt/jx を再読み込み
+  useEffect(() => {
+    if (!lightbox || !card) return;
+    const cur = _apiCache.get(card.id);
+    if (!cur?.jt && !cur?.jx) return;
+    setJaInfo(prev => ({ jt: prev.jt || cur.jt || "", jx: prev.jx || cur.jx || "" }));
+  }, [lightbox]);
 
   const goTo = (idx) => { setPrintIdx(idx); setDisplayId(prints[idx].id); setFaceIdx(0); };
   const prev = () => goTo((printIdx - 1 + prints.length) % prints.length);
