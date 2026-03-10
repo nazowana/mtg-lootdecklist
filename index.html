@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.31";
+const APP_VERSION = "1.10.33";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -199,7 +199,7 @@ const STYLES = `
   .topbar{background:var(--bg2);border-bottom:1px solid var(--line);padding:0 24px;height:52px;display:flex;align-items:center;gap:0;flex-shrink:0;position:sticky;top:0;z-index:200;}
   .logo{font-family:'Cinzel',serif;font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.14em;white-space:nowrap;margin-right:28px;line-height:1;}
   .logo small{display:block;font-size:8px;color:var(--mut);letter-spacing:.22em;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
-  .logo .ver{font-size:7px;color:var(--gold);font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;margin-left:6px;vertical-align:middle;}
+  .logo .ver{display:block;font-size:7px;color:var(--gold);font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;margin-top:2px;}
   .main-tabs{display:flex;height:100%;}
   .main-tab{background:none;border:none;border-bottom:2px solid transparent;padding:0 22px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mut);cursor:pointer;letter-spacing:.1em;transition:all .15s;white-space:nowrap;}
   .main-tab:hover{color:var(--txt);}
@@ -426,6 +426,7 @@ const STYLES = `
     .topbar{flex-wrap:wrap;height:auto;padding:8px 12px 0;}
     .logo{font-size:11px;margin-right:auto;}
     .logo small{display:none;}
+    .logo .ver{display:inline;font-size:7px;margin-top:0;margin-left:6px;}
     .main-tabs{order:9;width:calc(100% + 24px);margin:6px -12px 0;border-top:1px solid var(--line);height:38px;}
     .main-tab{flex:1;padding:0 4px;font-size:9px;letter-spacing:.03em;}
     .spacer{display:none;}
@@ -632,6 +633,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
   const [faceIdx, setFaceIdx] = useState(0);
   const [panelWidth, setPanelWidth] = useState(DETAIL_DEFAULT_W);
   const [lightbox, setLightbox] = useState(false);
+  const [jaInfo, setJaInfo] = useState({ jt: "", jx: "" });
   const thumbsRef = useRef(null);
   const dragRef = useRef({ moved: false });
 
@@ -675,6 +677,8 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
     setPrints([]);
     setPrintIdx(0);
     setFaceIdx(0);
+    const cached = _apiCache.get(card.id);
+    setJaInfo({ jt: cached?.jt || "", jx: cached?.jx || "" });
     let cancelled = false;
     (async () => {
       try {
@@ -685,9 +689,24 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
         if (cancelled) return;
-        const data = (d2?.data || [])
+        const rawData = d2?.data || [];
+        const data = rawData
           .map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }))
           .sort((a, b) => (a.lang==='ja'?0:1) - (b.lang==='ja'?0:1));
+        // 日本語カードから jt/jx をキャッシュに保存 & state更新
+        const cur = _apiCache.get(card.id);
+        const jaCard = rawData.find(c => c.lang === 'ja');
+        if (jaCard && cur) {
+          const jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line || "";
+          const jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text || "";
+          const upd = {};
+          if (jt && !cur.jt) upd.jt = jt;
+          if (jx && !cur.jx) upd.jx = jx;
+          if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
+          if (!cancelled) setJaInfo({ jt: jt || cur.jt || "", jx: jx || cur.jx || "" });
+        } else if (cur && !cancelled) {
+          setJaInfo({ jt: cur.jt || "", jx: cur.jx || "" });
+        }
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
         if (idx >= 0) {
@@ -825,10 +844,10 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
         <div className="img-lightbox" onClick={() => setLightbox(false)}>
           <div className="lb-container" onClick={e => e.stopPropagation()}>
             <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt="" />
-            {(card.jt || card.jx) && (
+            {(jaInfo.jt || jaInfo.jx) && (
               <div className="lb-text">
-                {card.jt && <div className="lb-type">{card.jt}</div>}
-                {card.jx && <div className="lb-oracle">{card.jx}</div>}
+                {jaInfo.jt && <div className="lb-type">{jaInfo.jt}</div>}
+                {jaInfo.jx && <div className="lb-oracle">{jaInfo.jx}</div>}
               </div>
             )}
           </div>
@@ -1358,7 +1377,7 @@ function App() {
 
         {/* TOPBAR */}
         <div className="topbar">
-          <div className="logo">⬡ MTG LOOT VAULT<small>COMMANDER REGISTRY<span className="ver">v{APP_VERSION}</span></small></div>
+          <div className="logo">⬡ MTG LOOT VAULT<small>COMMANDER REGISTRY</small><span className="ver">v{APP_VERSION}</span></div>
           <div className="main-tabs">
             <button className={`main-tab${tab==="search"?" on":""}`} onClick={() => setTab("search")}>SEARCH</button>
             <button className={`main-tab${tab==="players"?" on":""}`} onClick={() => setTab("players")}>
