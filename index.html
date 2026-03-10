@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.46";
+const APP_VERSION = "1.10.47";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1423,38 +1423,48 @@ function App() {
     const timer = setTimeout(async () => {
       try {
         const isJa = /[\u3040-\u9FFF]/.test(q);
-        // カード名・オラクルテキスト・タイプラインをOR検索（英語・日本語ともに拡張）
-        const expandedQ = q.includes(' ') ? `(${q} OR o:"${q}" OR t:"${q}")` : `(${q} OR o:${q} OR t:${q})`;
-        const enQ = encodeURIComponent(isJa ? q : expandedQ);
-        const jaQ = `lang%3Aja+${encodeURIComponent(expandedQ)}`;
         const base = "https://api.scryfall.com/cards/search?order=name&unique=cards&q=";
         const filter = searchMode === "commander" ? "is%3Acommander+" : "";
 
-        const [dEn, dJa] = await Promise.all([
-          fetch(base + filter + enQ).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch(base + filter + jaQ).then(r => r.ok ? r.json() : null).catch(() => null),
-        ]);
+        let fetches;
+        if (isJa) {
+          // 日本語クエリ: 名前検索・タイプライン検索を並列実行
+          // （o: は英語oracle専用のため使用しない）
+          const jaNameQ = `lang%3Aja+${encodeURIComponent(q)}`;
+          const jaTypeQ = `lang%3Aja+t%3A${encodeURIComponent(q)}`;
+          fetches = [
+            fetch(base + filter + jaNameQ).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(base + filter + jaTypeQ).then(r => r.ok ? r.json() : null).catch(() => null),
+            Promise.resolve(null), // enQ不要
+          ];
+        } else {
+          // 英語クエリ: 名前・oracle・タイプをOR展開
+          const expandedQ = q.includes(' ') ? `(${q} OR o:"${q}" OR t:"${q}")` : `(${q} OR o:${q} OR t:${q})`;
+          const enQ = encodeURIComponent(expandedQ);
+          const jaQ = `lang%3Aja+${encodeURIComponent(expandedQ)}`;
+          fetches = [
+            fetch(base + filter + enQ).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(base + filter + jaQ).then(r => r.ok ? r.json() : null).catch(() => null),
+            Promise.resolve(null),
+          ];
+        }
 
-        // 英語名 → 英語カード（正規ID取得用）
-        const enMap = {};
-        for (const c of (dEn?.data || [])) enMap[c.name] = c;
+        const [dPrimary, dSecondary] = await Promise.all(fetches);
 
-        // 英語名 → 日本語名マップ
-        const jaMap = {};
-        for (const c of (dJa?.data || [])) {
+        // 英語名 → 英語カード（正規ID取得用）・日本語名マップ
+        const enMap = {}, jaMap = {};
+        for (const c of [...(dPrimary?.data || []), ...(dSecondary?.data || [])]) {
+          if (!isJa) enMap[c.name] = c;
           const ja = c.printed_name || c.card_faces?.[0]?.printed_name;
           if (ja) jaMap[c.name] = ja;
         }
+        if (!isJa) for (const c of (dPrimary?.data || [])) enMap[c.name] = c;
 
-        // 日本語クエリなら日本語結果を優先表示順、英語クエリなら英語優先
-        const primary = isJa ? (dJa?.data || []) : (dEn?.data || []);
-        const secondary = isJa ? (dEn?.data || []) : (dJa?.data || []);
         const seen = new Set();
         const cards = [];
-        for (const c of [...primary, ...secondary]) {
-          if (seen.has(c.name)) continue;
+        const addCard = c => {
+          if (seen.has(c.name)) return;
           seen.add(c.name);
-          // IDは常に英語版の正規IDを使用（言語別IDの重複登録を防ぐ）
           const canonicalId = enMap[c.name]?.id || c.id;
           const card = {
             id: canonicalId, n: c.name,
@@ -1465,17 +1475,19 @@ function App() {
           };
           _cachePut(canonicalId, card);
           cards.push(card);
-        }
+        };
+        for (const c of [...(dPrimary?.data || []), ...(dSecondary?.data || [])]) addCard(c);
 
-        // 日本語クエリ: ローカルキャッシュの jt/jx も補助検索（APIで取れないケースを補完）
-        if (isJa) {
+        // ローカルキャッシュも補助検索（jt/jx/j/n に対してマッチ）
+        {
           const isCommander = searchMode === "commander";
           for (const [, cached] of _apiCache) {
             if (seen.has(cached.n)) continue;
             if (isCommander && !(cached.t || '').includes('Legendary')) continue;
-            const qt = (cached.jt || '').includes(q);
-            const qx = (cached.jx || '').includes(q);
-            if (qt || qx) { seen.add(cached.n); cards.push(cached); }
+            const hit = isJa
+              ? ((cached.j || '').includes(q) || (cached.jt || '').includes(q) || (cached.jx || '').includes(q))
+              : ((cached.n || '').toLowerCase().includes(q.toLowerCase()) || (cached.t || '').toLowerCase().includes(q.toLowerCase()));
+            if (hit) { seen.add(cached.n); cards.push(cached); }
           }
         }
 
