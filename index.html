@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.44";
+const APP_VERSION = "1.10.45";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -735,10 +735,23 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
           .map(c => ({ id: c.id, set: c.set_name, lang: c.lang, dfc: Array.isArray(c.card_faces) && c.card_faces.length >= 2 }))
           .sort((a, b) => (a.lang==='ja'?0:1) - (b.lang==='ja'?0:1));
         // 日本語カードから jt/jx をキャッシュに保存 & state更新
-        const jaCard = rawData.find(c => c.lang === 'ja');
+        // printed_type_line があるプリントを優先して選択
+        const jaCard = rawData.find(c => c.lang === 'ja' && (c.printed_type_line || c.card_faces?.[0]?.printed_type_line))
+                    || rawData.find(c => c.lang === 'ja');
         if (jaCard) {
-          const jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line || "";
-          const jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text || "";
+          let jt = jaCard.printed_type_line || jaCard.card_faces?.[0]?.printed_type_line || "";
+          let jx = jaCard.printed_text || jaCard.card_faces?.[0]?.printed_text || "";
+          // 検索結果で printed_type_line が空の場合、単体エンドポイントで補完
+          if (!jt && jaCard.id) {
+            try {
+              const rFull = await fetch(`https://api.scryfall.com/cards/${jaCard.id}`);
+              const jcFull = rFull.ok ? await rFull.json() : null;
+              if (jcFull && !cancelled) {
+                jt = jcFull.printed_type_line || jcFull.card_faces?.[0]?.printed_type_line || "";
+                if (!jx) jx = jcFull.printed_text || jcFull.card_faces?.[0]?.printed_text || "";
+              }
+            } catch(e) {}
+          }
           // 正データがあれば両パスを問わず反映（fetchJaId済みでも補完）
           _resolveJa(jt, jx);
           // キャッシュにも常に更新
