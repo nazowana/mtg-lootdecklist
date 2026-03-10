@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.34";
+const APP_VERSION = "1.10.35";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -680,6 +680,34 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
     const cached = _apiCache.get(card.id);
     setJaInfo({ jt: cached?.jt || "", jx: cached?.jx || "" });
     let cancelled = false;
+    // fetchJaId 経由で jt/jx を確実に補完（DeckName と同じ信頼性の高いパス）
+    fetchJaId(card.id, card.n).then(jaId => {
+      if (cancelled) return;
+      const cur = _apiCache.get(card.id);
+      // _runJaQueue がキャッシュ更新済みなら反映
+      if (cur?.jt || cur?.jx) {
+        setJaInfo(prev => ({ jt: prev.jt || cur.jt || "", jx: prev.jx || cur.jx || "" }));
+        return;
+      }
+      // _runJaQueue が printed_type_line/printed_text を取得できなかった場合: 直接フェッチ
+      if (!jaId) return;
+      fetch(`https://api.scryfall.com/cards/${jaId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(jc => {
+          if (cancelled || !jc) return;
+          const jt = jc.printed_type_line || jc.card_faces?.[0]?.printed_type_line || "";
+          const jx = jc.printed_text || jc.card_faces?.[0]?.printed_text || "";
+          if (!jt && !jx) return;
+          setJaInfo(prev => ({ jt: prev.jt || jt, jx: prev.jx || jx }));
+          const c = _apiCache.get(card.id);
+          if (c) {
+            const upd = {};
+            if (jt && !c.jt) upd.jt = jt;
+            if (jx && !c.jx) upd.jx = jx;
+            if (Object.keys(upd).length) _cachePut(card.id, { ...c, ...upd });
+          }
+        });
+    });
     (async () => {
       try {
         const searchName = card.n.includes(' // ') ? card.n.split(' // ')[0] : card.n;
@@ -705,9 +733,9 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
             if (jx && !cur.jx) upd.jx = jx;
             if (Object.keys(upd).length) _cachePut(card.id, { ...cur, ...upd });
           }
-          if (!cancelled) setJaInfo({ jt: jt || cur?.jt || "", jx: jx || cur?.jx || "" });
+          if (!cancelled) setJaInfo(prev => ({ jt: prev.jt || jt || cur?.jt || "", jx: prev.jx || jx || cur?.jx || "" }));
         } else if (!cancelled) {
-          setJaInfo({ jt: cur?.jt || "", jx: cur?.jx || "" });
+          setJaInfo(prev => ({ jt: prev.jt || cur?.jt || "", jx: prev.jx || cur?.jx || "" }));
         }
         setPrints(data);
         const idx = data.findIndex(p => p.id === initialId);
