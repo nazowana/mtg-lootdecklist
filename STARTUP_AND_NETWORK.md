@@ -75,6 +75,19 @@ UUID変更があった場合:
   ケースB: _jaCache にUUIDあり・名前なし
     → GET https://api.scryfall.com/cards/{jaId}
        で日本語名を直接取得して _apiCache.j を補完
+       ※ 同時に jt/jx も補完
+```
+
+### ステップ5: 日本語タイプ・テキスト補完（非同期・UIをブロックしない）
+
+```
+全カードのうち j はあるが jt/jx が空のものを対象（200ms間隔シリアル処理）:
+  _jaCache にUUIDあり:
+    → GET https://api.scryfall.com/cards/{jaId}
+       printed_type_line → _apiCache.jt
+       printed_text      → _apiCache.jx
+  _jaCache にUUIDなし:
+    → fetchJaId() キュー経由（_runJaQueue が jt/jx も更新）
 ```
 
 ---
