@@ -72,10 +72,13 @@ const STORAGE_TABLE = "mtg_vault";
 | `cmd-players-v1` | プレイヤーデータ | JSON配列 |
 | `cmd-card-cache-v1` | カードデータキャッシュ | `[[uuid, cardObj], ...]`（Mapエントリ形式） |
 | `mtg-ja-img-v4` | 日本語画像UUID | `{ uuid: jaUuid }` オブジェクト |
+| `mtg-ja-text-v1` | 日本語テキストDB（IndexedDB） | `{ n, j, jt, jx, jaId }` キー: 英語名 |
+| `mtg-ja-fetch-v1` | 日本語テキストDBフェッチ進捗（localStorage） | `{ page, done, ts }` |
 
 - **Supabase設定時**: REST APIでリモート保存、5秒ポーリングで全員に同期
 - **Supabase未設定時**: `localStorage`のみで動作（単一ブラウザのみ）
 - カードキャッシュ・日本語画像UUIDは変更から3秒後にSupabaseへデバウンス同期
+- 日本語テキストDBはIndexedDBのみ（ローカル）。起動時にサイレントバックグラウンドフェッチで構築、7日ごとに更新
 
 ### Supabaseテーブル定義
 ```sql

@@ -40,6 +40,23 @@ Supabase から並列取得:
 Supabase から cmd-players-v1 を取得
   → setPlayers() でUIに反映（ここで初めてデッキ一覧が表示される）
   ※ 旧データ互換: loots = p.loots || p.treasures || []
+  → _runJaTextBgFetch() を呼び出し（サイレントバックグラウンド処理）
+```
+
+### ステップ2.5: 日本語テキストDB構築（バックグラウンド・UIをブロックしない）
+
+```
+_runJaTextBgFetch() が非同期で動作:
+  1. IndexedDB (mtg-ja-text-v1) を開く
+  2. localStorage の mtg-ja-fetch-v1 でフェッチ進捗を確認
+     - 完了済み かつ 7日以内 → スキップ
+     - 未完了 → 前回の続きページから再開
+  3. Scryfall から lang:ja カードを500ms間隔でページングフェッチ
+     GET https://api.scryfall.com/cards/search?q=lang%3Aja&unique=cards&order=name&page={n}
+  4. 取得した jt/jx をバッチで IndexedDB に書き込み
+     キー: n（英語名）、値: { n, j, jt, jx, jaId }
+  5. 全ページ完了またはエラー時に進捗をlocalStorageに保存して終了
+     ※ エラーは全てサイレント処理（次回起動時に再開）
 ```
 
 ### ステップ3: バックグラウンド UUID 正規化（非同期・UIをブロックしない）
@@ -114,9 +131,17 @@ Supabase が設定されている場合のみ動作する。
   └─ _apiCache 内をインクリメンタル検索（通信なし）
 
 全カードモード（350msデバウンス）:
-  1. GET https://api.scryfall.com/cards/search?q={query}&lang=ja
-  2. GET https://api.scryfall.com/cards/search?q={query}&lang=en
-  3. 結果を _cachePut() でキャッシュ（co含む）
+  英語クエリ:
+    1. GET https://api.scryfall.com/cards/search?q={query}&unique=cards
+    2. GET https://api.scryfall.com/cards/search?q=lang:ja+{query}
+    3. 結果を _cachePut() でキャッシュ（co含む）
+    4. ローカル _apiCache を補助検索（n/t/j/jt/jx マッチ）
+  日本語クエリ（並列実行）:
+    1. GET https://api.scryfall.com/cards/search?q=lang:ja+{query}  ← 名前検索
+    2. GET https://api.scryfall.com/cards/search?q=lang:ja+t:{query}  ← タイプ検索
+    3. _jaTextSearch(q) ← IndexedDB全文検索（jt/jxに対してマッチ）
+    4. ローカル _apiCache を補助検索（j/jt/jx マッチ）
+    ※ IndexedDB結果は _nameIndex でUUID解決して _apiCache とマージ
 ```
 
 ### カード画像表示（CardImg コンポーネント）
@@ -176,6 +201,8 @@ localStorage に即時書き込み（cmd-card-cache-v1）
 | `cmd-players-v1` | Supabase + localStorage | プレイヤーデータ全体 | デッキ/カード追加・削除・名前変更など |
 | `cmd-card-cache-v1` | Supabase + localStorage | カードデータ Map（全キャッシュ） | カード取得のたびに即時 + 3秒デバウンス同期 |
 | `mtg-ja-img-v4` | Supabase + localStorage | 英語UUID → 日本語UUID のマッピング | fetchJaId 成功時に即時 + 3秒デバウンス同期 |
+| `mtg-ja-text-v1` | IndexedDB（ローカルのみ） | 英語名キー → { n, j, jt, jx, jaId } | _runJaTextBgFetch() によるバックグラウンド構築 |
+| `mtg-ja-fetch-v1` | localStorage | 日本語テキストDBフェッチ進捗 { page, done, ts } | _runJaTextBgFetch() 実行時に更新 |
 
 ---
 

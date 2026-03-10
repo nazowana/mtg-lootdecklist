@@ -83,14 +83,18 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.47";
+const APP_VERSION = "1.11.0";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
 const _apiCache = new Map((() => { try { return JSON.parse(localStorage.getItem(CARD_CACHE_KEY) || "[]"); } catch(e) { return []; } })());
+// 英語名 → 正規UUID の逆引きインデックス（検索高速化用）
+const _nameIndex = new Map();
+for (const [id, card] of _apiCache) { if (card?.n) _nameIndex.set(card.n, id); }
 let _cacheSyncTimer = null;
 function _cachePut(id, card) {
   _apiCache.set(id, card);
+  if (card?.n) _nameIndex.set(card.n, id);
   try { localStorage.setItem(CARD_CACHE_KEY, JSON.stringify([..._apiCache])); } catch(e) {}
   // Supabase へデバウンス同期（3秒後にまとめて保存）
   if (SUPABASE_URL) {
@@ -99,6 +103,86 @@ function _cachePut(id, card) {
   }
 }
 function cardById(id) { return _apiCache.get(id); }
+
+// ── IndexedDB: 日本語テキストDB ──
+const _JA_DB_NAME = 'mtg-ja-text-v1';
+const _JA_FETCH_KEY = 'mtg-ja-fetch-v1';
+let _jaTextDb = null;
+function _openJaTextDb() {
+  if (_jaTextDb) return Promise.resolve(_jaTextDb);
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(_JA_DB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('cards', { keyPath: 'n' });
+    req.onsuccess = e => { _jaTextDb = e.target.result; res(_jaTextDb); };
+    req.onerror = () => rej();
+  });
+}
+async function _jaTextPutBatch(records) {
+  try {
+    const db = await _openJaTextDb();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('cards', 'readwrite');
+      const s = tx.objectStore('cards');
+      records.forEach(r => s.put(r));
+      tx.oncomplete = res; tx.onerror = rej;
+    });
+  } catch(e) {}
+}
+async function _jaTextSearch(q) {
+  try {
+    const db = await _openJaTextDb();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction('cards', 'readonly');
+      const results = [];
+      const req = tx.objectStore('cards').openCursor();
+      req.onsuccess = e => {
+        const cur = e.target.result;
+        if (!cur) { res(results); return; }
+        const v = cur.value;
+        if ((v.jt || '').includes(q) || (v.jx || '').includes(q)) results.push(v);
+        cur.continue();
+      };
+      req.onerror = () => res([]);
+    });
+  } catch(e) { return []; }
+}
+async function _runJaTextBgFetch() {
+  try {
+    await _openJaTextDb();
+    const state = JSON.parse(localStorage.getItem(_JA_FETCH_KEY) || '{"page":1,"done":false,"ts":0}');
+    // 完了済みでも7日経過なら再フェッチ
+    if (state.done && Date.now() - (state.ts || 0) < 7 * 86400000) return;
+    let page = state.done ? 1 : (state.page || 1);
+    while (true) {
+      await new Promise(r => setTimeout(r, 500));
+      const resp = await fetch(
+        `https://api.scryfall.com/cards/search?q=lang%3Aja&unique=cards&order=name&page=${page}`
+      );
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          localStorage.setItem(_JA_FETCH_KEY, JSON.stringify({ page, done: true, ts: Date.now() }));
+        }
+        break;
+      }
+      const data = await resp.json();
+      const records = (data.data || [])
+        .map(c => ({
+          n:    c.name,
+          j:    c.printed_name    || c.card_faces?.[0]?.printed_name    || '',
+          jt:   c.printed_type_line || c.card_faces?.[0]?.printed_type_line || '',
+          jx:   c.printed_text   || c.card_faces?.[0]?.printed_text   || '',
+          jaId: c.id,
+        }))
+        .filter(r => r.jt || r.jx);
+      if (records.length) await _jaTextPutBatch(records);
+      localStorage.setItem(_JA_FETCH_KEY, JSON.stringify({
+        page: page + 1, done: !data.has_more, ts: Date.now()
+      }));
+      if (!data.has_more) break;
+      page++;
+    }
+  } catch(e) {} // サイレント失敗・次回起動時に再開
+}
 
 // ── 画像URL ──
 function imgUrl(id, size="normal", face="front") {
@@ -1182,6 +1266,7 @@ function App() {
       if (!pl) return;
       let loaded = pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] }));
       setPlayers(loaded);
+      _runJaTextBgFetch(); // バックグラウンドで日本語テキストDB構築（サイレント）
 
       // バックグラウンドでUUID正規化・coフィールド補完・未キャッシュ取得を実行
       // 対象: 未キャッシュ または co未設定 のカードのみ（処理済みはスキップ）
@@ -1428,14 +1513,14 @@ function App() {
 
         let fetches;
         if (isJa) {
-          // 日本語クエリ: 名前検索・タイプライン検索を並列実行
+          // 日本語クエリ: 名前検索・タイプライン検索・IndexedDB全文検索を並列実行
           // （o: は英語oracle専用のため使用しない）
           const jaNameQ = `lang%3Aja+${encodeURIComponent(q)}`;
           const jaTypeQ = `lang%3Aja+t%3A${encodeURIComponent(q)}`;
           fetches = [
             fetch(base + filter + jaNameQ).then(r => r.ok ? r.json() : null).catch(() => null),
             fetch(base + filter + jaTypeQ).then(r => r.ok ? r.json() : null).catch(() => null),
-            Promise.resolve(null), // enQ不要
+            _jaTextSearch(q), // IndexedDB全文検索（jt/jxに対してマッチ）
           ];
         } else {
           // 英語クエリ: 名前・oracle・タイプをOR展開
@@ -1449,7 +1534,7 @@ function App() {
           ];
         }
 
-        const [dPrimary, dSecondary] = await Promise.all(fetches);
+        const [dPrimary, dSecondary, dIdb] = await Promise.all(fetches);
 
         // 英語名 → 英語カード（正規ID取得用）・日本語名マップ
         const enMap = {}, jaMap = {};
@@ -1488,6 +1573,38 @@ function App() {
               ? ((cached.j || '').includes(q) || (cached.jt || '').includes(q) || (cached.jx || '').includes(q))
               : ((cached.n || '').toLowerCase().includes(q.toLowerCase()) || (cached.t || '').toLowerCase().includes(q.toLowerCase()));
             if (hit) { seen.add(cached.n); cards.push(cached); }
+          }
+        }
+
+        // IndexedDB全文検索結果をマージ（日本語クエリのみ）
+        if (isJa && dIdb?.length) {
+          const isCommander = searchMode === "commander";
+          for (const r of dIdb) {
+            if (isCommander && !(r.jt || '').includes('伝説')) continue;
+            if (seen.has(r.n)) {
+              // すでに結果にある場合はjt/jxを既存カードに補完
+              const uuid = _nameIndex.get(r.n);
+              if (uuid) {
+                const c = _apiCache.get(uuid);
+                if (c) { if (!c.jt && r.jt) c.jt = r.jt; if (!c.jx && r.jx) c.jx = r.jx; }
+              }
+              continue;
+            }
+            seen.add(r.n);
+            const uuid = _nameIndex.get(r.n);
+            if (uuid) {
+              const cached = _apiCache.get(uuid);
+              if (cached) {
+                if (!cached.jt && r.jt) cached.jt = r.jt;
+                if (!cached.jx && r.jx) cached.jx = r.jx;
+                cards.push(cached);
+              } else {
+                cards.push({ id: uuid, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" });
+              }
+            } else {
+              // キャッシュ未取得: jaIdを仮IDとして使用（選択時に英語情報を取得）
+              cards.push({ id: r.jaId, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" });
+            }
           }
         }
 
