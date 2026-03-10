@@ -82,7 +82,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.25";
+const APP_VERSION = "1.10.26";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -547,7 +547,7 @@ function DeckName({ card }) {
 function matchesColorFilter(card, filter) {
   if (!filter || filter.size === 0) return true;
   const co = card.co != null ? card.co : (card.ci || []); // マナコスト色。未取得時はciでフォールバック
-  const isLand = (card.t || '').includes('Land');
+  const isLand = (card.t || '').split('//')[0].includes('Land');
   for (const f of filter) {
     if (f === 'L' && isLand) return true;
     if (isLand) continue;
@@ -1063,7 +1063,7 @@ function App() {
       // 対象: 未キャッシュ または co未設定 のカードのみ（処理済みはスキップ）
       const allIds = [...new Set(loaded.flatMap(p => [...(p.decks||[]), ...(p.wants||[]), ...(p.loots||[])]))];
       (async () => {
-        const needsUpdate = allIds.filter(id => { const c = _apiCache.get(id); return !c || c.co == null || (c.co.length === 0 && (c.ci||[]).length > 0 && !(c.t||'').includes('Land')); });
+        const needsUpdate = allIds.filter(id => { const c = _apiCache.get(id); return !c || c.co == null || (c.co.length === 0 && (c.ci||[]).length > 0 && !(c.t||'').split('//')[0].includes('Land')); });
         if (!needsUpdate.length) return;
         const idMap = new Map();
         let anyChanged = false;
