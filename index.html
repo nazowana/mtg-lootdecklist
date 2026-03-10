@@ -83,7 +83,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.10.38";
+const APP_VERSION = "1.10.39";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -594,9 +594,9 @@ const CF_TAGS = [
 function ColorFilterBar({ filter, onToggle, onClear }) {
   return (
     <div className="color-filter-bar">
-      {CF_PIPS.map(({key, ms, title}) => (
+      {CF_PIPS.map(({key, ms}) => (
         <button key={key} className={`cf-pip${filter.has(key)?' on':''}`}
-          onClick={() => onToggle(key)} title={title}>
+          onClick={() => onToggle(key)}>
           <i className={`ms ms-cost ms-shadow ${ms}`} />
         </button>
       ))}
