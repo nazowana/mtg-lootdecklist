@@ -44,11 +44,22 @@ async function remoteGet(key) {
     const v = localStorage.getItem(key);
     return v ? JSON.parse(v) : null;
   }
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${STORAGE_TABLE}?key=eq.${key}&select=value`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-  });
-  const rows = await res.json();
-  return rows.length ? JSON.parse(rows[0].value) : null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${STORAGE_TABLE}?key=eq.${key}&select=value`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      signal: controller.signal
+    });
+    const rows = await res.json();
+    return rows.length ? JSON.parse(rows[0].value) : null;
+  } catch(e) {
+    // タイムアウトまたはネットワークエラー → localStorageにフォールバック
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function remoteSet(key, value) {
@@ -83,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.0";
+const APP_VERSION = "1.11.1";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
