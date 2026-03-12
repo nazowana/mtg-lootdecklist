@@ -45,7 +45,7 @@ async function remoteGet(key) {
     return v ? JSON.parse(v) : null;
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${STORAGE_TABLE}?key=eq.${key}&select=value`, {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
@@ -94,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.1";
+const APP_VERSION = "1.11.2";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1386,9 +1386,16 @@ function App() {
   // ポーリング（Supabase設定時のみ）
   useEffect(() => {
     if (!SUPABASE_URL) return;
+    let polling = false;
     const t = setInterval(async () => {
-      const pl = await remoteGet(PLAYERS_KEY);
-      if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] })));
+      if (polling) return; // 前の取得が終わるまでスキップ
+      polling = true;
+      try {
+        const pl = await remoteGet(PLAYERS_KEY);
+        if (pl) setPlayers(pl.map(p => ({ wants:[], arts:{}, loots:[], ...p, loots: p.loots || p.treasures || [] })));
+      } finally {
+        polling = false;
+      }
     }, 5000);
     return () => clearInterval(t);
   }, []);
