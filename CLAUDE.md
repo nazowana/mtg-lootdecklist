@@ -133,6 +133,13 @@ create policy "public" on mtg_vault for all using (true);
   - 通信フロー・起動処理・バックグラウンド処理の変更 → `STARTUP_AND_NETWORK.md`
   - 両方に跨る変更（ストレージキー追加、新規APIエンドポイント等）→ 両方更新
 - MDの更新を省略・後回しにしてはならない
+- `STARTUP_AND_NETWORK.md` の更新対象となる変更の具体例:
+  - Supabase / Scryfall などとの通信フローの変更
+  - タイムアウト・リトライ・フォールバック・エラーハンドリングの変更
+  - `remoteGet` / `remoteSet` / `_cachePut` などストレージ関数の変更
+  - ポーリング・バックグラウンド処理の追加・変更・削除
+  - 起動シーケンス（初期ロード・useState 初期化）の変更
+  - ストレージキーの追加・変更・削除
 
 ## バージョン管理ルール
 - `APP_VERSION` は `index.html` の85行目付近に定義
