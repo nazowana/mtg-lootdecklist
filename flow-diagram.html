@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTG Loot Vault — 通信フロー図</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1e2e;
+    --border: #2e3450;
+    --accent: #c5a557;
+    --text: #d4d8f0;
+    --muted: #7880a0;
+    --tag-bg: #252a3e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', sans-serif;
+    padding: 32px 24px 80px;
+    line-height: 1.6;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  header h1 {
+    font-size: 1.8rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  header p {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .toc {
+    max-width: 720px;
+    margin: 0 auto 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 28px;
+  }
+  .toc h2 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: var(--accent); text-decoration: none; font-size: 0.95rem; }
+  .toc a:hover { text-decoration: underline; }
+  .diagram-block {
+    max-width: 1100px;
+    margin: 0 auto 56px;
+  }
+  .diagram-block h2 {
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .diagram-block p.desc {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+  }
+  .mermaid-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    overflow-x: auto;
+  }
+  .mermaid { display: flex; justify-content: center; }
+  .tag {
+    display: inline-block;
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    padding: 2px 10px;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MTG Loot Vault — 通信フロー図</h1>
+  <p>STARTUP_AND_NETWORK.md / CLAUDE.md をもとに自動生成</p>
+</header>
+
+<nav class="toc">
+  <h2>目次</h2>
+  <ol>
+    <li><a href="#seq1">起動シーケンス（ページロード〜ポーリング）</a></li>
+    <li><a href="#bg">バックグラウンド処理（UUID正規化・日本語補完）</a></li>
+    <li><a href="#user">ユーザー操作フロー（検索・画像表示・データ変更）</a></li>
+    <li><a href="#cache">キャッシュ書き込みフロー（_cachePut / _saveJa）</a></li>
+  </ol>
+</nav>
+
+<!-- 1. 起動シーケンス -->
+<section class="diagram-block" id="seq1">
+  <h2>1. 起動シーケンス <span class="tag">sequenceDiagram</span></h2>
+  <p class="desc">ページロードからSupabase並列取得、フォールバック処理、バックグラウンド起動、ポーリングまでの全体フロー。</p>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+sequenceDiagram
+    participant B as ブラウザ
+    participant LS as localStorage
+    participant IDB as IndexedDB
+    participant SB as Supabase
+    participant SC as Scryfall API
+
+    Note over B: t=0ms スクリプト評価（同期）
+    B->>LS: cmd-card-cache-v1 → _apiCache
+    B->>LS: mtg-ja-img-v4 → _jaCache
+
+    Note over B: t=~0ms React useState 初期化（同期）
+    B->>LS: cmd-players-v1 → players state
+    Note over B: 再訪問ユーザー：デッキ一覧を即時表示
+
+    Note over B: t=~10ms useEffect 起動
+    par Supabase 並列取得（各5秒タイムアウト）
+        B->>SB: GET cmd-card-cache-v1
+        B->>SB: GET mtg-ja-img-v4
+        B->>SB: GET cmd-players-v1
+    end
+
+    alt Supabase 正常応答（500ms〜3000ms）
+        SB-->>B: カードキャッシュ・日本語UUID・プレイヤーデータ
+        B->>B: キャッシュマージ + setPlayers() → UI更新
+    else タイムアウト（5000ms）
+        SB--xB: AbortController でキャンセル
+        B->>LS: フォールバック読み込み
+        B->>B: 接続失敗バナー表示（再読み込みを促す）
+    end
+
+    Note over B: バックグラウンド処理を非同期起動
+    B->>IDB: _runJaTextBgFetch()
+    B->>SC: UUID正規化・日本語補完（ステップ3〜5）
+
+    loop 5秒ごとポーリング（Supabase設定時のみ）
+        B->>SB: GET cmd-players-v1（タイムアウト5秒）
+        alt 成功
+            SB-->>B: 最新プレイヤーデータ → setPlayers()
+        else 失敗
+            Note over B: 無視（バナーなし）
+        end
+    end
+    </div>
+  </div>
+</section>
+
+<!-- 2. バックグラウンド処理 -->
+<section class="diagram-block" id="bg">
+  <h2>2. バックグラウンド処理 <span class="tag">flowchart TD</span></h2>
+  <p class="desc">UUID正規化（ステップ3）・日本語名補完（ステップ4）・jt/jx補完（ステップ5）・日本語テキストDB構築（ステップ2.5）。UIをブロックしない非同期処理。</p>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    A([バックグラウンド処理起動]) --> B
+    A --> C
+    A --> D
+    A --> E
+
+    subgraph BG25["ステップ2.5　日本語テキストDB構築"]
+        B["_runJaTextBgFetch()"] --> B1{IndexedDB確認}
+        B1 --> B2{"完了済み\nかつ7日以内?"}
+        B2 -- YES --> B3([スキップ])
+        B2 -- NO --> B4[前回ページから再開]
+        B4 --> B5["GET /cards/search?q=lang:ja\n500ms間隔ページング"]
+        B5 --> B6["IndexedDB に書き込み\n{n, j, jt, jx, jaId}"]
+        B6 --> B7{全ページ完了?}
+        B7 -- NO --> B5
+        B7 -- YES --> B8[mtg-ja-fetch-v1 に進捗保存]
+    end
+
+    subgraph BG3["ステップ3　UUID正規化"]
+        C[全カードID収集\ndecks + wants + loots] --> C2{"未キャッシュ\nOR co未設定?"}
+        C2 -- なし --> C3([終了])
+        C2 -- あり --> C4["GET /cards/{id}\n110ms間隔シリアル"]
+        C4 --> C5{"lang ≠ en?"}
+        C5 -- YES --> C6["GET /cards/named?exact={name}\n英語版正規UUID取得"]
+        C5 -- NO --> C7[_cachePut でキャッシュ更新]
+        C6 --> C7
+        C7 --> C8{UUID変更あり?}
+        C8 -- YES --> C9[setPlayers\n+ remoteSet Supabase]
+        C8 -- NO --> C2
+    end
+
+    subgraph BG4["ステップ4　日本語名補完"]
+        D[j が空のカードを収集] --> D1{"対象カードあり?"}
+        D1 -- なし --> D2([終了])
+        D1 -- あり --> D3{"_jaCache に\nUUIDあり?"}
+        D3 -- YES --> D4["GET /cards/{jaId}\nj名・jt・jxも補完"]
+        D3 -- NO --> D5["fetchJaId() キュー\n250ms間隔シリアル\nGET /cards/named?exact\nGET /cards/search?q=oracleid+lang:ja"]
+        D4 --> D1
+        D5 --> D1
+    end
+
+    subgraph BG5["ステップ5　jt/jx補完"]
+        E["j あり・jt/jx 空のカードを収集"] --> E1{"対象カードあり?"}
+        E1 -- なし --> E2([終了])
+        E1 -- あり --> E3{"_jaCache に\nUUIDあり?"}
+        E3 -- YES --> E4["GET /cards/{jaId}\nprinted_type_line → jt\nprinted_text → jx\n200ms間隔シリアル"]
+        E3 -- NO --> E5["fetchJaId() キュー経由"]
+        E4 --> E1
+        E5 --> E1
+    end
+    </div>
+  </div>
+</section>
+
+<!-- 3. ユーザー操作フロー -->
+<section class="diagram-block" id="user">
+  <h2>3. ユーザー操作フロー <span class="tag">flowchart TD</span></h2>
+  <p class="desc">カード検索・カード画像表示・プレイヤーデータ変更・欲しいカードインポートの各フロー。</p>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    U([ユーザー操作]) --> S & I & P & IM
+
+    subgraph SEARCH["カード検索　350ms デバウンス"]
+        S[検索] --> S1{"モード?"}
+        S1 -- 統率者モード --> S2[_apiCache 内検索\n通信なし]
+        S1 -- "全カード / 欲しいカードタブ" --> S3{"クエリ言語?"}
+        S3 -- 英語 --> S4["並列3本:\nGET /cards/search?q={expanded}\nGET /cards/search?q=lang:ja+{expanded}\n_apiCache 補助検索 n/t"]
+        S3 -- 日本語 --> S5["並列4本:\nGET /cards/search?q=lang:ja+{query}\nGET /cards/search?q=lang:ja+t:{query}\nIndexedDB 全文検索 jt/jx\n_apiCache 補助検索 j/jt/jx"]
+        S4 --> S6[_cachePut でキャッシュ保存]
+        S5 --> S6
+    end
+
+    subgraph IMG["カード画像表示　CardImg"]
+        I[画像リクエスト] --> I1{"fetchJaId\nキャッシュ済み?"}
+        I1 -- YES --> I4
+        I1 -- NO --> I3["_jaQueue 経由:\nGET /cards/named?exact={name}\nGET /cards/search?q=oracleid:{id} lang:ja"]
+        I3 --> I4["Scryfall CDN\nhttps://cards.scryfall.io/{size}/front/…/{id}.jpg"]
+    end
+
+    subgraph PLAYER["プレイヤーデータ変更"]
+        P["デッキ追加/削除\n名前変更 など"] --> P1[setPlayers → UI即時反映]
+        P1 --> P2[remoteSet → Supabase 即時保存]
+        P1 --> P3[localStorage 即時保存]
+    end
+
+    subgraph IMPORT["欲しいカードインポート　110ms間隔"]
+        IM[カード名テキスト入力] --> IM1{"_apiCache\nにヒット?"}
+        IM1 -- YES --> IM2[通信なし → wants に追加]
+        IM1 -- NO --> IM3["GET /cards/named?fuzzy={name}"]
+        IM3 --> IM4[_cachePut キャッシュ]
+        IM4 --> IM2
+    end
+    </div>
+  </div>
+</section>
+
+<!-- 4. キャッシュ書き込み -->
+<section class="diagram-block" id="cache">
+  <h2>4. キャッシュ書き込みフロー <span class="tag">flowchart LR</span></h2>
+  <p class="desc">_cachePut（カードデータ）と _saveJa（日本語UUID）の localStorage 即時書き込み + 3秒デバウンス Supabase 同期。</p>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart LR
+    A([カードデータ取得]) --> B["_apiCache\nメモリ Map 即時更新"]
+    B --> C["localStorage 即時書き込み\ncmd-card-cache-v1"]
+    C --> D{"3秒デバウンス\n別の書き込みで\nタイマーリセット"}
+    D --> E["remoteSet Supabase\ncmd-card-cache-v1"]
+
+    F([日本語UUID取得]) --> G["_jaCache\nメモリ Map 即時更新"]
+    G --> H["localStorage 即時書き込み\nmtg-ja-img-v4"]
+    H --> I{"3秒デバウンス\n別の書き込みで\nタイマーリセット"}
+    I --> J["remoteSet Supabase\nmtg-ja-img-v4"]
+    </div>
+  </div>
+</section>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#1a1e2e',
+      primaryColor: '#252a3e',
+      primaryTextColor: '#d4d8f0',
+      primaryBorderColor: '#2e3450',
+      lineColor: '#7880a0',
+      secondaryColor: '#1a1e2e',
+      tertiaryColor: '#0f1117',
+      edgeLabelBackground: '#1a1e2e',
+      clusterBkg: '#181c2c',
+      clusterBorder: '#3a4060',
+      titleColor: '#c5a557',
+      nodeBorder: '#2e3450',
+      mainBkg: '#252a3e',
+      actorBkg: '#252a3e',
+      actorBorder: '#c5a557',
+      actorTextColor: '#d4d8f0',
+      actorLineColor: '#7880a0',
+      signalColor: '#d4d8f0',
+      signalTextColor: '#d4d8f0',
+      labelBoxBkgColor: '#252a3e',
+      labelBoxBorderColor: '#2e3450',
+      labelTextColor: '#d4d8f0',
+      loopTextColor: '#c5a557',
+      noteBkgColor: '#252a3e',
+      noteBorderColor: '#c5a557',
+      noteTextColor: '#d4d8f0',
+      activationBkgColor: '#2e3450',
+      sequenceNumberColor: '#c5a557',
+      fontFamily: "'Segoe UI', sans-serif",
+      fontSize: '14px',
+    },
+    flowchart: { curve: 'basis', padding: 20 },
+    sequence: { actorMargin: 60, width: 160, height: 50, boxMargin: 10, mirrorActors: false },
+  });
+</script>
+</body>
+</html>
