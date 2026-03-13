@@ -94,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.2";
+const APP_VERSION = "1.11.3";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -428,6 +428,13 @@ const STYLES = `
   .players-scroll{flex:1;overflow-y:auto;}
   .players-scroll::-webkit-scrollbar{width:5px;}
   .players-scroll::-webkit-scrollbar-thumb{background:var(--ln2);border-radius:3px;}
+  .wants-search-section{background:var(--bg2);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .wants-search-bar{padding:6px 24px 8px;display:flex;align-items:center;gap:8px;}
+  .wants-search-bar .s-wrap{max-width:480px;}
+  .wants-search-results-wrap{max-height:280px;overflow-y:auto;padding:0 24px 14px;}
+  .wants-search-results-wrap::-webkit-scrollbar{width:5px;}
+  .wants-search-results-wrap::-webkit-scrollbar-thumb{background:var(--ln2);border-radius:3px;}
+  .wants-search-loading{padding:8px 24px;font-size:11px;color:var(--dim);letter-spacing:.1em;}
   .player-row{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-height:130px;}
   .player-row:last-child{border-bottom:none;}
   .player-info{width:110px;min-width:110px;padding:12px 12px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);flex-shrink:0;justify-content:center;}
@@ -1234,6 +1241,10 @@ function App() {
   const [apiLoading, setApiLoading]     = useState(false);
   const [apiTotalCards, setApiTotalCards] = useState(null);
   const [cmdTotalCards, setCmdTotalCards] = useState(null);
+  const [showWantsSearch, setShowWantsSearch] = useState(false);
+  const [wantsQuery, setWantsQuery]     = useState("");
+  const [wantsResults, setWantsResults] = useState(null);
+  const [wantsLoading, setWantsLoading] = useState(false);
   const inputRef   = useRef(null);
   const toastTimer = useRef(null);
 
@@ -1633,6 +1644,70 @@ function App() {
     return () => clearTimeout(timer);
   }, [query, searchMode]);
 
+  // 欲しいカードタブ: 全カード検索
+  useEffect(() => {
+    const q = wantsQuery.trim();
+    if (!q) { setWantsResults(null); setWantsLoading(false); return; }
+    setWantsLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const isJa = /[\u3040-\u9FFF]/.test(q);
+        const base = "https://api.scryfall.com/cards/search?order=name&unique=cards&q=";
+        let fetches;
+        if (isJa) {
+          fetches = [
+            fetch(base + `lang%3Aja+${encodeURIComponent(q)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(base + `lang%3Aja+t%3A${encodeURIComponent(q)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+            _jaTextSearch(q),
+          ];
+        } else {
+          const expandedQ = q.includes(' ') ? `(${q} OR o:"${q}" OR t:"${q}")` : `(${q} OR o:${q} OR t:${q})`;
+          fetches = [
+            fetch(base + encodeURIComponent(expandedQ)).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(base + `lang%3Aja+${encodeURIComponent(expandedQ)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+            Promise.resolve(null),
+          ];
+        }
+        const [dPrimary, dSecondary, dIdb] = await Promise.all(fetches);
+        const enMap = {}, jaMap = {};
+        for (const c of [...(dPrimary?.data || []), ...(dSecondary?.data || [])]) {
+          if (!isJa) enMap[c.name] = c;
+          const ja = c.printed_name || c.card_faces?.[0]?.printed_name;
+          if (ja) jaMap[c.name] = ja;
+        }
+        if (!isJa) for (const c of (dPrimary?.data || [])) enMap[c.name] = c;
+        const seen = new Set();
+        const cards = [];
+        const addCard = c => {
+          if (seen.has(c.name)) return;
+          seen.add(c.name);
+          const canonicalId = enMap[c.name]?.id || c.id;
+          const card = { id: canonicalId, n: c.name, j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "", t: c.type_line || "", ci: c.color_identity || [], co: c.colors?.length ? c.colors : (c.card_faces?.[0]?.colors || []), p: c.power || null, th: c.toughness || null, r: (c.rarity || "c")[0], cat: "c" };
+          _cachePut(canonicalId, card);
+          cards.push(card);
+        };
+        for (const c of [...(dPrimary?.data || []), ...(dSecondary?.data || [])]) addCard(c);
+        for (const [, cached] of _apiCache) {
+          if (seen.has(cached.n)) continue;
+          const hit = isJa ? ((cached.j || '').includes(q) || (cached.jt || '').includes(q) || (cached.jx || '').includes(q)) : ((cached.n || '').toLowerCase().includes(q.toLowerCase()) || (cached.t || '').toLowerCase().includes(q.toLowerCase()));
+          if (hit) { seen.add(cached.n); cards.push(cached); }
+        }
+        if (isJa && dIdb?.length) {
+          for (const r of dIdb) {
+            if (seen.has(r.n)) { const uuid = _nameIndex.get(r.n); if (uuid) { const c = _apiCache.get(uuid); if (c) { if (!c.jt && r.jt) c.jt = r.jt; if (!c.jx && r.jx) c.jx = r.jx; } } continue; }
+            seen.add(r.n);
+            const uuid = _nameIndex.get(r.n);
+            if (uuid) { const cached = _apiCache.get(uuid); if (cached) { if (!cached.jt && r.jt) cached.jt = r.jt; if (!cached.jx && r.jx) cached.jx = r.jx; cards.push(cached); } else { cards.push({ id: uuid, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" }); } }
+            else { cards.push({ id: r.jaId, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" }); }
+          }
+        }
+        setWantsResults(cards.length ? cards : []);
+      } catch(e) { setWantsResults([]); }
+      setWantsLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [wantsQuery]);
+
   const displayCards = apiResults;
 
   return (
@@ -1836,6 +1911,13 @@ function App() {
               {players.length > 0 && (<>
                 <div className="wants-toolbar-break" />
                 <button className="btn primary" onClick={() => setShowImportWants(true)}>⇩ インポート</button>
+                <button className={`btn primary${showWantsSearch?" active":""}`} onClick={() => {
+                  const next = !showWantsSearch;
+                  setShowWantsSearch(next);
+                  if (!next) { setWantsQuery(""); setWantsResults(null); setSelectedCard(null); }
+                }}>
+                  {showWantsSearch ? "✕ 検索を閉じる" : "🔍 カード検索"}
+                </button>
                 <button className={`btn primary${lootMode?" active":""}`} onClick={() => {
                   if (!lootMode) {
                     const order = {};
@@ -1859,6 +1941,36 @@ function App() {
               </>)}
               <div className="spacer" />
             </div>
+            {showWantsSearch && (
+              <div className="wants-search-section">
+                <div className="wants-search-bar">
+                  <div className="s-wrap">
+                    <span className="si">⌕</span>
+                    <input autoFocus placeholder="カード名を検索（英語・日本語）…"
+                      value={wantsQuery} onChange={e => setWantsQuery(e.target.value)} />
+                    {wantsQuery && <button className="cx" onClick={() => { setWantsQuery(""); setWantsResults(null); }}>✕</button>}
+                  </div>
+                </div>
+                {wantsLoading ? (
+                  <div className="wants-search-loading">検索中…</div>
+                ) : wantsResults !== null && (
+                  <div className="wants-search-results-wrap">
+                    {wantsResults.length === 0 ? (
+                      <div style={{ color:"var(--dim)", fontSize:11 }}>該当するカードが見つかりません</div>
+                    ) : (<>
+                      <div className="result-count"><b>{wantsResults.length.toLocaleString()}</b> 枚が見つかりました</div>
+                      <div className="card-grid">
+                        {wantsResults.map(card => (
+                          <CardTile key={card.id} card={card}
+                            selected={selectedCard?.id === card.id}
+                            onClick={() => { setSelectedCard(p => p?.id === card.id ? null : card); setSelectedArtCtx(null); }} />
+                        ))}
+                      </div>
+                    </>)}
+                  </div>
+                )}
+              </div>
+            )}
             {players.length > 0 && <ColorFilterBar filter={colorFilter} onToggle={toggleColorFilter} onClear={clearColorFilter} />}
 
             {players.length===0 ? (
