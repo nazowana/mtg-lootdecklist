@@ -94,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.5";
+const APP_VERSION = "1.11.6";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -242,8 +242,7 @@ function _runJaQueue() {
   (async () => {
     let v = false;
     try {
-      const searchName = item.name.includes(' // ') ? item.name.split(' // ')[0] : item.name;
-      const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
+      const r1 = await fetch(`https://api.scryfall.com/cards/${item.id}`);
       const c1 = r1.ok ? await r1.json() : null;
       if (c1?.oracle_id) {
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} lang:ja`)}&order=released&dir=desc&unique=prints`);
@@ -829,12 +828,12 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
     });
     (async () => {
       try {
-        const searchName = card.n.includes(' // ') ? card.n.split(' // ')[0] : card.n;
-        const r1 = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(searchName)}`);
+        const r1 = await fetch(`https://api.scryfall.com/cards/${card.id}`);
         const c1 = r1.ok ? await r1.json() : null;
         if (!c1?.oracle_id || cancelled) return;
-        // 英語オラクルテキストをフォールバック用に保存
-        if (c1.oracle_text && !cancelled) setEnOracle(c1.oracle_text);
+        // 英語オラクルテキストをフォールバック用に保存（トークン含む）
+        const oracleText = c1.oracle_text || c1.card_faces?.[0]?.oracle_text || "";
+        if (oracleText && !cancelled) setEnOracle(oracleText);
         const r2 = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${c1.oracle_id} (lang:ja or lang:en)`)}&order=released&dir=desc&unique=prints`);
         const d2 = r2.ok ? await r2.json() : null;
         if (cancelled) return;
