@@ -94,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.6";
+const APP_VERSION = "1.11.7";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1023,7 +1023,7 @@ function DetailPane({ card, players, onAddDeck, onAddWant, onRemoveDeck, onRemov
       </div>
       {lightbox && (
         <div className="img-lightbox" onClick={() => setLightbox(false)}>
-          <div className="lb-container" onClick={e => e.stopPropagation()}>
+          <div className="lb-container" onClick={() => setLightbox(false)}>
             <img src={imgUrl(curId, "large", faceIdx===1?"back":"front")} alt="" />
             {(card.j || card.n) && <div className="lb-name">{card.j || card.n}</div>}
             {jaStatus === "loading" && !jaInfo.jt && !jaInfo.jx ? (
