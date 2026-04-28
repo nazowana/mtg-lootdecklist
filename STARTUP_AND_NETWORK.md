@@ -59,13 +59,13 @@ Promise.all で同時リクエスト:
   └─ cmd-players-v1     → setPlayers() でUIを更新
         ※ 旧データ互換: loots = p.loots || p.treasures || []
 
-各リクエストのタイムアウト: 5秒（AbortController）
+各リクエストのタイムアウト: 15秒（AbortController）※モバイル・アプリ内ブラウザ対応で延長
 接続失敗（タイムアウト / ネットワークエラー）:
   → players キーでエラー発生時は supabaseFailed = true を記録
   → localStorage の値にフォールバック（値がなければ null）
   → setShowReloadBanner(true) で接続失敗バナーを表示
 
-最悪ケースの待機時間: 5秒（以前は直列で最大10秒）
+最悪ケースの待機時間: 15秒（モバイル・アプリ内ブラウザ + Supabaseコールドスタートを考慮）
 ```
 
 ### ステップ2: バックグラウンド処理の起動
@@ -169,8 +169,8 @@ Supabase が設定されている場合のみ動作する。
 
 | 場面 | タイムアウト | 実装 |
 |---|---|---|
-| 初期ロード（全3キー） | 各5秒 | AbortController |
-| ポーリング（5秒ごと） | 各5秒 | AbortController |
+| 初期ロード（全3キー） | 各15秒 | AbortController（`timeout` オプションで指定） |
+| ポーリング（5秒ごと） | 各5秒 | AbortController（デフォルト値） |
 
 ### 接続失敗時のフォールバック
 
@@ -218,7 +218,7 @@ supabaseFailed = true が記録される
 統率者モード（SEARCHタブのみ）:
   └─ _apiCache 内をインクリメンタル検索（通信なし）
 
-全カードモード / 欲しいカードタブ検索（350msデバウンス）:
+全カードモード / 欲しいカードタブ検索（700msデバウンス）:
   英語クエリ（並列）:
     1. GET https://api.scryfall.com/cards/search?q={expanded}&unique=cards
     2. GET https://api.scryfall.com/cards/search?q=lang:ja+{expanded}
@@ -330,11 +330,11 @@ t=~500ms〜3000ms  Supabase からデータ受信
                   └─ キャッシュマージ → setPlayers() でUI更新（最新データに切り替わる）
 
            【Supabase がタイムアウトの場合】
-t=5000ms  AbortController がリクエストをキャンセル
+t=15000ms AbortController がリクエストをキャンセル
           └─ localStorage フォールバック
           └─ 接続失敗バナー表示（🔄 再読み込みを促す）
 
-t=5000ms〜 バックグラウンド処理（UUID正規化・日本語補完）が順次実行
+t=15000ms〜 バックグラウンド処理（UUID正規化・日本語補完）が順次実行
 
 t=5秒ごと  ポーリング（多重実行ガード付き）
            └─ Supabase から最新プレイヤーデータを取得してUI更新
