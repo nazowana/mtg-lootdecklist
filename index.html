@@ -81,7 +81,7 @@ async function remoteSet(key, value) {
 </script>
 
 <script type="text/babel">
-const { useState, useMemo, useRef, useEffect, useCallback } = React;
+const { useState, useRef, useEffect, useCallback } = React;
 
 
 const COLOR_LBL = { W:"白", U:"青", B:"黒", R:"赤", G:"緑" };
@@ -94,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.11";
+const APP_VERSION = "1.11.12";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1166,7 +1166,7 @@ function ImportWantsModal({ players, onAddWant, onClose }) {
           const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
           if (!r.ok) throw new Error("not found");
           const c = await r.json();
-          card = { id:c.id, n:c.name, j:c.printed_name||c.card_faces?.[0]?.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], co:c.colors?.length?c.colors:(c.card_faces?.[0]?.colors||[]), p:c.power||null, th:c.toughness||null, r:(c.rarity||"c")[0], cat:"c" };
+          card = { id:c.id, n:c.name, j:c.printed_name||c.card_faces?.[0]?.printed_name||"", t:c.type_line||"", ci:c.color_identity||[], co:c.colors?.length?c.colors:(c.card_faces?.[0]?.colors||[]) };
           _cachePut(c.id, card);
           await new Promise(res => setTimeout(res, 110));
         }
@@ -1248,7 +1248,6 @@ function App() {
   const [lootOrder, setLootOrder] = useState(null); // { playerId: cardId[] } 編集開始時のスナップショット
   const [editingPlayer, setEditingPlayer] = useState(null); // player object | null
   const [toast, setToast]               = useState("");
-  const [syncMode, setSyncMode]         = useState(!!SUPABASE_URL);
   const [searchMode, setSearchMode]     = useState("commander"); // "commander" | "all"
   const [apiResults, setApiResults]     = useState(null);
   const [apiLoading, setApiLoading]     = useState(false);
@@ -1331,7 +1330,7 @@ function App() {
               if (r2.ok) { enCard = await r2.json(); canonicalId = enCard.id; if (canonicalId !== id) anyChanged = true; }
             }
             const existingJ = _apiCache.get(id)?.j || _apiCache.get(canonicalId)?.j || "";
-            _cachePut(canonicalId, { id:canonicalId, n:enCard.name, j:jaName || existingJ, t:enCard.type_line||"", ci:enCard.color_identity||[], co:enCard.colors?.length?enCard.colors:(enCard.card_faces?.[0]?.colors||[]), p:enCard.power||null, th:enCard.toughness||null, r:(enCard.rarity||"c")[0], cat:"c" });
+            _cachePut(canonicalId, { id:canonicalId, n:enCard.name, j:jaName || existingJ, t:enCard.type_line||"", ci:enCard.color_identity||[], co:enCard.colors?.length?enCard.colors:(enCard.card_faces?.[0]?.colors||[]) });
             idMap.set(id, canonicalId);
           } catch(e) { idMap.set(id, id); }
         }
@@ -1602,9 +1601,7 @@ function App() {
           const card = {
             id: canonicalId, n: c.name,
             j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "",
-            t: c.type_line || "", ci: c.color_identity || [], co: c.colors?.length?c.colors:(c.card_faces?.[0]?.colors||[]),
-            p: c.power || null, th: c.toughness || null,
-            r: (c.rarity || "c")[0], cat: "c"
+            t: c.type_line || "", ci: c.color_identity || [], co: c.colors?.length?c.colors:(c.card_faces?.[0]?.colors||[])
           };
           _cachePut(canonicalId, card);
           cards.push(card);
@@ -1647,11 +1644,11 @@ function App() {
                 if (!cached.jx && r.jx) cached.jx = r.jx;
                 cards.push(cached);
               } else {
-                cards.push({ id: uuid, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" });
+                cards.push({ id: uuid, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [] });
               }
             } else {
               // キャッシュ未取得: jaIdを仮IDとして使用（選択時に英語情報を取得）
-              cards.push({ id: r.jaId, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" });
+              cards.push({ id: r.jaId, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [] });
             }
           }
         }
@@ -1701,7 +1698,7 @@ function App() {
           if (seen.has(c.name)) return;
           seen.add(c.name);
           const canonicalId = enMap[c.name]?.id || c.id;
-          const card = { id: canonicalId, n: c.name, j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "", t: c.type_line || "", ci: c.color_identity || [], co: c.colors?.length ? c.colors : (c.card_faces?.[0]?.colors || []), p: c.power || null, th: c.toughness || null, r: (c.rarity || "c")[0], cat: "c" };
+          const card = { id: canonicalId, n: c.name, j: jaMap[c.name] || c.printed_name || c.card_faces?.[0]?.printed_name || "", t: c.type_line || "", ci: c.color_identity || [], co: c.colors?.length ? c.colors : (c.card_faces?.[0]?.colors || []) };
           _cachePut(canonicalId, card);
           cards.push(card);
         };
@@ -1716,8 +1713,8 @@ function App() {
             if (seen.has(r.n)) { const uuid = _nameIndex.get(r.n); if (uuid) { const c = _apiCache.get(uuid); if (c) { if (!c.jt && r.jt) c.jt = r.jt; if (!c.jx && r.jx) c.jx = r.jx; } } continue; }
             seen.add(r.n);
             const uuid = _nameIndex.get(r.n);
-            if (uuid) { const cached = _apiCache.get(uuid); if (cached) { if (!cached.jt && r.jt) cached.jt = r.jt; if (!cached.jx && r.jx) cached.jx = r.jx; cards.push(cached); } else { cards.push({ id: uuid, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" }); } }
-            else { cards.push({ id: r.jaId, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [], p: null, th: null, r: "c", cat: "c" }); }
+            if (uuid) { const cached = _apiCache.get(uuid); if (cached) { if (!cached.jt && r.jt) cached.jt = r.jt; if (!cached.jx && r.jx) cached.jx = r.jx; cards.push(cached); } else { cards.push({ id: uuid, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [] }); } }
+            else { cards.push({ id: r.jaId, n: r.n, j: r.j, jt: r.jt, jx: r.jx, t: "", ci: [], co: [] }); }
           }
         }
         setWantsResults(cards.length ? cards : []);

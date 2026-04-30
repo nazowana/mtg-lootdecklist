@@ -29,13 +29,9 @@ index.html   # メインアプリ（これ1ファイルで動作する）
   "jx": "〜が戦場に出たとき…",                      // 日本語カードテキスト（printed_text、取得済みの場合のみ）
   "t": "Legendary Creature — Human Warrior",  // 英語タイプライン
   "ci": ["W"],           // カラーアイデンティティ（起動型能力の色も含む）
-  "co": ["W"],           // マナコストの色のみ（カラーフィルタで使用）
+  "co": ["W"]            // マナコストの色のみ（カラーフィルタで使用）
                          // ※DFCはScryfall card-level colors が空のため card_faces[0].colors を使用
                          // ※MDFCで裏面がLandでも表面タイプのみで isLand 判定（split('//')[0]）
-  "p": "4",              // パワー（nullの場合あり）
-  "th": "4",             // タフネス（nullの場合あり）
-  "r": "u",              // レアリティ m/r/u/c/s の1文字
-  "cat": "c"             // カテゴリ c=クリーチャー / v=機体 / s=テキスト指定
 }
 // jt・jx は日本語プリントが存在し取得済みの場合のみセットされる。
 // DFCは card_faces[0].printed_type_line / card_faces[0].printed_text をフォールバックで使用。
