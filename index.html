@@ -94,7 +94,7 @@ const PLAYER_COLORS = [
   "#ffffff","#c0c0c0","#888888","#404040","#1a1a1a",
 ];
 const PLAYERS_KEY = "cmd-players-v1";
-const APP_VERSION = "1.11.9";
+const APP_VERSION = "1.11.10";
 document.title = `MTG LOOT VAULT v${APP_VERSION} — Commander Registry`;
 
 const CARD_CACHE_KEY = "cmd-card-cache-v1";
@@ -1258,8 +1258,10 @@ function App() {
   const [wantsQuery, setWantsQuery]     = useState("");
   const [wantsResults, setWantsResults] = useState(null);
   const [wantsLoading, setWantsLoading] = useState(false);
-  const inputRef   = useRef(null);
-  const toastTimer = useRef(null);
+  const inputRef        = useRef(null);
+  const composingRef    = useRef(false);
+  const wantsComposing  = useRef(false);
+  const toastTimer      = useRef(null);
 
   // 初期ロード
   useEffect(() => {
@@ -1772,8 +1774,9 @@ function App() {
                   ? `統率者名を検索… (${cmdTotalCards ? cmdTotalCards.toLocaleString()+" 枚対象" : "読み込み中…"})`
                   : `カード名を検索… (${apiTotalCards ? apiTotalCards.toLocaleString()+" 枚対象" : "読み込み中…"})`}
                 value={query}
-                onChange={e => { if (!e.nativeEvent.isComposing) setQuery(e.target.value); }}
-                onCompositionEnd={e => setQuery(e.target.value)} />
+                onCompositionStart={() => { composingRef.current = true; }}
+                onCompositionEnd={e => { composingRef.current = false; setQuery(e.target.value); }}
+                onChange={e => { if (!composingRef.current) setQuery(e.target.value); }} />
               {query && <button className="cx" onClick={() => { setQuery(""); setSelectedCard(null); setApiResults(null); inputRef.current?.focus(); }}>✕</button>}
             </div>
             <div className="mode-toggle">
@@ -1979,8 +1982,9 @@ function App() {
                     <span className="si">⌕</span>
                     <input autoFocus placeholder="カード名を検索（英語・日本語）…"
                       value={wantsQuery}
-                      onChange={e => { if (!e.nativeEvent.isComposing) setWantsQuery(e.target.value); }}
-                      onCompositionEnd={e => setWantsQuery(e.target.value)} />
+                      onCompositionStart={() => { wantsComposing.current = true; }}
+                      onCompositionEnd={e => { wantsComposing.current = false; setWantsQuery(e.target.value); }}
+                      onChange={e => { if (!wantsComposing.current) setWantsQuery(e.target.value); }} />
                     {wantsQuery && <button className="cx" onClick={() => { setWantsQuery(""); setWantsResults(null); }}>✕</button>}
                   </div>
                 </div>
